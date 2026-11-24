@@ -8,8 +8,12 @@ CONTEXT.md.
 
 from __future__ import annotations
 
+import argparse
+import json
+import os
 import re
 import sqlite3
+import sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Iterable
@@ -263,3 +267,118 @@ def rename_term(db: sqlite3.Connection, old: str, new: str, description: str | N
     changed = replace_name(db, term_id, old_name, new)
     db.execute("UPDATE terms SET name = ?, description = ? WHERE id = ?", (new, description, term_id))
     return {"kept": new, "dropped": old_name, "merged": False, "notes_changed": changed}
+
+
+def check_data_folder(folder: Path) -> Path:
+    """Refuse a data folder inside a git repository, so Notes can never be committed."""
+    folder = folder.expanduser().resolve()
+    for parent in (folder, *folder.parents):
+        if (parent / ".git").exists():
+            raise ValueError(f"The data folder {folder} is inside the repository {parent}. Choose a folder outside it.")
+    folder.mkdir(parents=True, exist_ok=True)
+    return folder
+
+
+def data_folder() -> Path:
+    raw = os.environ.get("MEETUP_DATA")
+    if not raw:
+        raise ValueError("MEETUP_DATA is not set. It must name the data folder, outside any repository.")
+    return check_data_folder(Path(raw))
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Meetup Intelligence: save, look up and edit Notes. Prints JSON.")
+    commands = parser.add_subparsers(dest="command", required=True)
+
+    def add(name: str, help: str) -> argparse.ArgumentParser:
+        return commands.add_parser(name, help=help, description=help)
+
+    def add_term_options(command: argparse.ArgumentParser) -> None:
+        command.add_argument("--term", action="append", default=[], metavar="NAME",
+                             help="a Term in the Note; repeat for each Term")
+        command.add_argument("--describe", action="append", default=[], nargs=2, metavar=("NAME", "DESCRIPTION"),
+                             help="a one-sentence description for a Term; repeat for each Term")
+
+    add("terms", "List every Term with its description.")
+
+    save = add("save", "Save a Note under its Day and link its Terms.")
+    save.add_argument("--kind", choices=["text", "voice", "link"], default="text")
+    save.add_argument("--text", required=True, help="the Note: its text, its transcript, or its URL")
+    add_term_options(save)
+    save.add_argument("--at", type=datetime.fromisoformat, metavar="TIME",
+                      help="when the Note was captured, like 2026-11-12T18:42; default is now")
+
+    describe = add("describe", "Set or replace a Term's description.")
+    describe.add_argument("name")
+    describe.add_argument("description")
+
+    day = add("day", "Show a Day's Timeline.")
+    day.add_argument("date", nargs="?", type=date.fromisoformat, help="like 2026-11-12; default is the current Day")
+
+    recent = add("recent", "List the latest Notes with their ids, newest first.")
+    recent.add_argument("--n", type=int, default=10, help="how many Notes; default 10")
+
+    correct = add("correct", "Rewrite a Note and link it to the right Terms.")
+    correct.add_argument("note_id", type=int)
+    correct.add_argument("--text", required=True)
+    add_term_options(correct)
+
+    rename = add("rename", "Rename a Term. If the new name already exists, the two Terms become one.")
+    rename.add_argument("old")
+    rename.add_argument("new")
+    rename.add_argument("--description", help="the fresh description for the new name")
+
+    merge = add("merge", "Make two Terms one. The older Term keeps its name unless --keep says otherwise.")
+    merge.add_argument("a")
+    merge.add_argument("b")
+    merge.add_argument("--keep", metavar="NAME", help="the name to keep")
+
+    delete = add("delete", "Delete a Note.")
+    delete.add_argument("note_id", type=int)
+
+    return parser
+
+
+def run(db: sqlite3.Connection, args: argparse.Namespace) -> object:
+    """Carry out one command and return what to print."""
+    match args.command:
+        case "terms":
+            return list_terms(db)
+        case "save":
+            return save_note(db, args.kind, args.text, args.term, args.at, dict(args.describe))
+        case "describe":
+            return describe_term(db, args.name, args.description)
+        case "day":
+            return timeline(db, (args.date or day_of(datetime.now())).isoformat())
+        case "recent":
+            return recent_notes(db, args.n)
+        case "correct":
+            return correct_note(db, args.note_id, args.text, args.term, dict(args.describe))
+        case "rename":
+            return rename_term(db, args.old, args.new, args.description)
+        case "merge":
+            return merge_terms(db, args.a, args.b, args.keep)
+        case "delete":
+            return delete_note(db, args.note_id)
+    raise ValueError(f"Unknown command {args.command!r}.")
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    try:
+        db = connect(data_folder() / "meetup.db")
+        try:
+            with db:  # one command is one transaction: all of it is saved, or none
+                result = run(db, args)
+        finally:
+            db.close()
+    except (LookupError, ValueError) as error:
+        print(json.dumps({"error": str(error)}))
+        return 1
+    # ASCII-only output, so no Windows console encoding can break it.
+    print(json.dumps(result, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

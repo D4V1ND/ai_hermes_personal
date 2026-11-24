@@ -1,9 +1,15 @@
 """Checks for meetup.py. One test per rule in docs/spec.md."""
 
+import contextlib
+import io
+import json
+import os
 import sys
+import tempfile
 import unittest
 from datetime import date, datetime
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "skill" / "scripts"))
 
@@ -187,6 +193,99 @@ class EditTest(StoreTest):
             meetup.delete_note(self.db, 99)
         with self.assertRaises(LookupError):
             meetup.correct_note(self.db, 99, "x")
+
+
+class DataFolderTest(unittest.TestCase):
+    def setUp(self) -> None:
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        self.root = Path(folder.name)
+
+    def test_folder_inside_a_repository_is_refused(self) -> None:
+        (self.root / ".git").mkdir()
+        with self.assertRaises(ValueError):
+            meetup.check_data_folder(self.root / "data")
+        with self.assertRaises(ValueError):
+            meetup.check_data_folder(self.root)
+        self.assertFalse((self.root / "data").exists())
+
+    def test_folder_outside_a_repository_is_created(self) -> None:
+        folder = meetup.check_data_folder(self.root / "data")
+        self.assertTrue(folder.is_dir())
+
+    def test_this_repository_is_refused(self) -> None:
+        with self.assertRaises(ValueError):
+            meetup.check_data_folder(Path(__file__).resolve().parent / "data")
+
+
+class CommandLineTest(unittest.TestCase):
+    def setUp(self) -> None:
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        self.folder = folder.name
+
+    def run_script(self, *argv: str, data: str | None = "") -> tuple[int, object]:
+        env = {} if data is None else {"MEETUP_DATA": data or self.folder}
+        out = io.StringIO()
+        with mock.patch.dict(os.environ, env), contextlib.redirect_stdout(out):
+            if data is None:
+                os.environ.pop("MEETUP_DATA", None)
+            code = meetup.main(list(argv))
+        return code, json.loads(out.getvalue())
+
+    def test_save_then_day_round_trip(self) -> None:
+        code, saved = self.run_script(
+            "save", "--kind", "voice", "--text", "MCP für Tools", "--term", "MCP",
+            "--describe", "MCP", "A standard.", "--at", "2026-11-13T00:30",
+        )
+        self.assertEqual(code, 0)
+        self.assertEqual(saved["day"], "2026-11-12")
+        self.assertTrue(saved["terms"][0]["new"])
+
+        code, timeline = self.run_script("day", "2026-11-12")
+        self.assertEqual(code, 0)
+        self.assertEqual(timeline["notes"][0]["text"], "MCP für Tools")
+        self.assertEqual(timeline["notes"][0]["terms"][0]["description"], "A standard.")
+
+    def test_every_edit_command_runs(self) -> None:
+        self.run_script("save", "--text", "Land Graph", "--term", "Land Graph")
+        self.run_script("save", "--text", "MCP", "--term", "MCP")
+        self.run_script("save", "--text", "Model Context Protocol", "--term", "Model Context Protocol")
+
+        _, recent = self.run_script("recent", "--n", "1")
+        self.assertEqual(recent[0]["text"], "Model Context Protocol")
+        _, corrected = self.run_script("correct", "1", "--text", "LandGraph", "--term", "LandGraph")
+        self.assertEqual(corrected["old_text"], "Land Graph")
+        _, renamed = self.run_script("rename", "LandGraph", "LangGraph", "--description", "A library.")
+        self.assertEqual(renamed["kept"], "LangGraph")
+        _, merged = self.run_script("merge", "MCP", "Model Context Protocol", "--keep", "MCP")
+        self.assertEqual(merged["dropped"], "Model Context Protocol")
+        _, described = self.run_script("describe", "MCP", "A standard.")
+        self.assertEqual(described["name"], "MCP")
+        _, deleted = self.run_script("delete", "1")
+        self.assertEqual(deleted["removed_terms"], ["LangGraph"])
+        _, terms = self.run_script("terms")
+        self.assertEqual(terms, [{"name": "MCP", "description": "A standard."}])
+
+    def test_changes_are_kept_between_runs_and_errors_change_nothing(self) -> None:
+        self.run_script("save", "--text", "MCP", "--term", "MCP")
+        code, result = self.run_script("delete", "99")
+        self.assertEqual(code, 1)
+        self.assertIn("error", result)
+        _, terms = self.run_script("terms")
+        self.assertEqual(len(terms), 1)
+
+    def test_script_refuses_a_data_folder_inside_the_repository(self) -> None:
+        inside = str(Path(__file__).resolve().parent / "data")
+        code, result = self.run_script("terms", data=inside)
+        self.assertEqual(code, 1)
+        self.assertIn("repository", result["error"])
+        self.assertFalse(Path(inside).exists())
+
+    def test_script_refuses_to_run_without_a_data_folder(self) -> None:
+        code, result = self.run_script("terms", data=None)
+        self.assertEqual(code, 1)
+        self.assertIn("MEETUP_DATA", result["error"])
 
 
 if __name__ == "__main__":
