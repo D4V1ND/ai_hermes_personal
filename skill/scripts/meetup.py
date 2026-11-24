@@ -8,6 +8,7 @@ CONTEXT.md.
 
 from __future__ import annotations
 
+import re
 import sqlite3
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -162,3 +163,103 @@ def recent_notes(db: sqlite3.Connection, limit: int = 10) -> list[dict]:
         notes.append({"id": note_id, "day": day, "time": saved_at[11:16], "text": text,
                       "terms": [name for (name,) in names]})
     return notes
+
+
+def find_note(db: sqlite3.Connection, note_id: int) -> tuple[str, str]:
+    """A Note's text and Day."""
+    row = db.execute("SELECT text, day FROM notes WHERE id = ?", (note_id,)).fetchone()
+    if row is None:
+        raise LookupError(f"No Note with id {note_id}.")
+    return row
+
+
+def prune_terms(db: sqlite3.Connection) -> list[str]:
+    """Remove every Term that no Note points to. Returns their names."""
+    unused = "id NOT IN (SELECT term_id FROM note_terms)"
+    names = [name for (name,) in db.execute(f"SELECT name FROM terms WHERE {unused} ORDER BY name")]
+    db.execute(f"DELETE FROM terms WHERE {unused}")
+    return names
+
+
+def correct_note(
+    db: sqlite3.Connection,
+    note_id: int,
+    text: str,
+    term_names: Iterable[str] = (),
+    descriptions: dict[str, str] | None = None,
+) -> dict:
+    """Rewrite a Note and link it to the right Terms. The original wording is not kept."""
+    old_text, day = find_note(db, note_id)
+    db.execute("UPDATE notes SET text = ? WHERE id = ?", (text, note_id))
+    db.execute("DELETE FROM note_terms WHERE note_id = ?", (note_id,))
+    linked = link_terms(db, note_id, term_names)
+    for name, description in (descriptions or {}).items():
+        describe_term(db, name, description)
+    terms = [{**term_view(db, term_id, day), "new": is_new} for term_id, is_new in linked]
+    return {"note_id": note_id, "old_text": old_text, "new_text": text, "terms": terms,
+            "removed_terms": prune_terms(db)}
+
+
+def delete_note(db: sqlite3.Connection, note_id: int) -> dict:
+    text, _ = find_note(db, note_id)
+    db.execute("DELETE FROM notes WHERE id = ?", (note_id,))
+    return {"deleted": {"id": note_id, "text": text}, "removed_terms": prune_terms(db)}
+
+
+def replace_name(db: sqlite3.Connection, term_id: int, old: str, new: str) -> list[dict]:
+    """Replace a Term's old name with the new one in the text of its Notes.
+
+    Only whole words are replaced, so renaming "Go" leaves "Google" alone.
+    """
+    pattern = re.compile(rf"(?<!\w){re.escape(old)}(?!\w)", re.IGNORECASE)
+    rows = db.execute(
+        "SELECT n.id, n.text FROM notes n JOIN note_terms nt ON nt.note_id = n.id WHERE nt.term_id = ?",
+        (term_id,),
+    ).fetchall()
+    changed = []
+    for note_id, text in rows:
+        new_text = pattern.sub(lambda match: new, text)
+        if new_text != text:
+            db.execute("UPDATE notes SET text = ? WHERE id = ?", (new_text, note_id))
+            changed.append({"id": note_id, "old_text": text, "new_text": new_text})
+    return changed
+
+
+def merge_terms(db: sqlite3.Connection, a: str, b: str, keep: str | None = None) -> dict:
+    """Make two Terms one. The Term that existed first keeps its name, unless `keep` names the other."""
+    kept, dropped = sorted([find_term(db, a), find_term(db, b)])  # lower id existed first
+    if kept[0] == dropped[0]:
+        raise ValueError(f"{a!r} and {b!r} are already the same Term.")
+    if keep is not None:
+        keep_id = find_term(db, keep)[0]
+        if keep_id not in (kept[0], dropped[0]):
+            raise ValueError(f"{keep!r} is neither of the two Terms.")
+        if keep_id == dropped[0]:
+            kept, dropped = dropped, kept
+    (kept_id, kept_name), (dropped_id, dropped_name) = kept, dropped
+    changed = replace_name(db, dropped_id, dropped_name, kept_name)
+    db.execute(
+        "INSERT OR IGNORE INTO note_terms (note_id, term_id) SELECT note_id, ? FROM note_terms WHERE term_id = ?",
+        (kept_id, dropped_id),
+    )
+    db.execute(
+        "UPDATE terms SET description = COALESCE(description, (SELECT description FROM terms WHERE id = ?)) "
+        "WHERE id = ?",
+        (dropped_id, kept_id),
+    )
+    db.execute("DELETE FROM terms WHERE id = ?", (dropped_id,))
+    return {"kept": kept_name, "dropped": dropped_name, "merged": True, "notes_changed": changed}
+
+
+def rename_term(db: sqlite3.Connection, old: str, new: str, description: str | None = None) -> dict:
+    """Give a Term a new name and description. If the new name already exists, the two Terms become one."""
+    term_id, old_name = find_term(db, old)
+    new = new.strip()
+    if not new:
+        raise ValueError("A Term needs a name.")
+    existing = db.execute("SELECT id FROM terms WHERE name = ?", (new,)).fetchone()
+    if existing and existing[0] != term_id:
+        return merge_terms(db, old_name, new, keep=new)
+    changed = replace_name(db, term_id, old_name, new)
+    db.execute("UPDATE terms SET name = ?, description = ? WHERE id = ?", (new, description, term_id))
+    return {"kept": new, "dropped": old_name, "merged": False, "notes_changed": changed}

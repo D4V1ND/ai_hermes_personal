@@ -99,5 +99,95 @@ class TimelineTest(StoreTest):
         self.assertEqual(recent[0]["day"], "2026-12-03")
 
 
+class EditTest(StoreTest):
+    def term_names(self) -> list[str]:
+        return [term["name"] for term in meetup.list_terms(self.db)]
+
+    def note_texts(self) -> list[str]:
+        return [text for (text,) in self.db.execute("SELECT text FROM notes ORDER BY id")]
+
+    def test_correcting_a_note_replaces_text_and_terms(self) -> None:
+        meetup.save_note(self.db, "text", "LangGraph", ["LangGraph"], datetime(2026, 11, 12, 18, 42))
+        wrong = meetup.save_note(self.db, "voice", "Land Graph", ["Land Graph"], datetime(2026, 12, 3, 19, 20))
+
+        result = meetup.correct_note(self.db, wrong["note_id"], "LangGraph", ["LangGraph"])
+
+        self.assertEqual((result["old_text"], result["new_text"]), ("Land Graph", "LangGraph"))
+        self.assertEqual(result["terms"][0]["other_days"], ["2026-11-12"])
+        self.assertEqual(result["removed_terms"], ["Land Graph"])
+        self.assertEqual(self.note_texts(), ["LangGraph", "LangGraph"])  # the old text is gone
+        self.assertEqual(self.term_names(), ["LangGraph"])
+
+    def test_renaming_a_term_rewrites_its_notes_and_clears_the_description(self) -> None:
+        meetup.save_note(self.db, "text", "tried Land Graph today", ["Land Graph"],
+                         descriptions={"Land Graph": "Wrong."})
+
+        result = meetup.rename_term(self.db, "Land Graph", "LangGraph")
+
+        self.assertFalse(result["merged"])
+        self.assertEqual(self.note_texts(), ["tried LangGraph today"])
+        self.assertEqual(meetup.list_terms(self.db), [{"name": "LangGraph", "description": None}])
+
+    def test_renaming_to_an_existing_name_leaves_one_term_with_both_notes(self) -> None:
+        meetup.save_note(self.db, "text", "LangGraph", ["LangGraph"], datetime(2026, 11, 12, 18, 42))
+        meetup.save_note(self.db, "voice", "Land Graph", ["Land Graph"], datetime(2026, 12, 3, 19, 20))
+
+        result = meetup.rename_term(self.db, "Land Graph", "LangGraph")
+
+        self.assertTrue(result["merged"])
+        self.assertEqual(self.term_names(), ["LangGraph"])
+        term_id = meetup.find_term(self.db, "LangGraph")[0]
+        self.assertEqual(meetup.days_of_term(self.db, term_id), ["2026-11-12", "2026-12-03"])
+        self.assertEqual(self.note_texts(), ["LangGraph", "LangGraph"])
+
+    def test_merging_keeps_the_older_term_and_rewrites_notes(self) -> None:
+        meetup.save_note(self.db, "text", "MCP", ["MCP"], datetime(2026, 11, 12, 19, 5))
+        meetup.save_note(self.db, "text", "Model Context Protocol demo", ["Model Context Protocol"],
+                         datetime(2026, 12, 3, 19, 20), descriptions={"Model Context Protocol": "A standard."})
+
+        result = meetup.merge_terms(self.db, "Model Context Protocol", "MCP")
+
+        self.assertEqual((result["kept"], result["dropped"]), ("MCP", "Model Context Protocol"))
+        self.assertEqual(self.note_texts(), ["MCP", "MCP demo"])
+        # The kept Term had no description, so it takes the dropped one's.
+        self.assertEqual(meetup.list_terms(self.db), [{"name": "MCP", "description": "A standard."}])
+
+    def test_merging_can_keep_the_name_i_ask_for(self) -> None:
+        meetup.save_note(self.db, "text", "MCP", ["MCP"])
+        meetup.save_note(self.db, "text", "Model Context Protocol", ["Model Context Protocol"])
+
+        meetup.merge_terms(self.db, "MCP", "Model Context Protocol", keep="Model Context Protocol")
+
+        self.assertEqual(self.term_names(), ["Model Context Protocol"])
+        self.assertEqual(self.note_texts(), ["Model Context Protocol", "Model Context Protocol"])
+
+    def test_replacing_a_name_leaves_longer_words_alone(self) -> None:
+        meetup.save_note(self.db, "text", "Go is used at Google", ["Go"])
+        meetup.rename_term(self.db, "Go", "Golang")
+        self.assertEqual(self.note_texts(), ["Golang is used at Google"])
+
+    def test_merging_a_term_with_itself_fails(self) -> None:
+        meetup.save_note(self.db, "text", "MCP", ["MCP"])
+        with self.assertRaises(ValueError):
+            meetup.merge_terms(self.db, "MCP", "mcp")
+
+    def test_deleting_the_only_note_of_a_term_removes_the_term(self) -> None:
+        keep = meetup.save_note(self.db, "text", "LangGraph", ["LangGraph"])
+        gone = meetup.save_note(self.db, "text", "MCP", ["MCP"])
+
+        result = meetup.delete_note(self.db, gone["note_id"])
+
+        self.assertEqual(result["removed_terms"], ["MCP"])
+        self.assertEqual(self.term_names(), ["LangGraph"])
+        self.assertEqual(self.note_texts(), ["LangGraph"])
+        self.assertEqual(keep["note_id"], self.db.execute("SELECT id FROM notes").fetchone()[0])
+
+    def test_editing_an_unknown_note_fails(self) -> None:
+        with self.assertRaises(LookupError):
+            meetup.delete_note(self.db, 99)
+        with self.assertRaises(LookupError):
+            meetup.correct_note(self.db, 99, "x")
+
+
 if __name__ == "__main__":
     unittest.main()
