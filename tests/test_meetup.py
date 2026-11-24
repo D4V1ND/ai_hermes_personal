@@ -67,5 +67,37 @@ class SaveTest(StoreTest):
             meetup.describe_term(self.db, "Nope", "x")
 
 
+class TimelineTest(StoreTest):
+    def setUp(self) -> None:
+        super().setUp()
+        # Saved out of order on purpose: the Timeline sorts by time.
+        meetup.save_note(self.db, "text", "MCP for tool calling", ["MCP"], datetime(2026, 11, 12, 19, 5))
+        meetup.save_note(
+            self.db, "text", "LangGraph", ["LangGraph"], datetime(2026, 11, 12, 18, 42),
+            descriptions={"LangGraph": "A library."},
+        )
+        meetup.save_note(self.db, "voice", "Lang Graph", ["LangGraph"], datetime(2026, 12, 3, 19, 20))
+
+    def test_day_returns_notes_in_saved_order_with_terms(self) -> None:
+        timeline = meetup.timeline(self.db, "2026-11-12")
+
+        self.assertEqual(timeline["day"], "2026-11-12")
+        self.assertEqual([(note["time"], note["text"]) for note in timeline["notes"]],
+                         [("18:42", "LangGraph"), ("19:05", "MCP for tool calling")])
+        self.assertEqual(timeline["notes"][0]["terms"],
+                         [{"name": "LangGraph", "description": "A library.", "other_days": ["2026-12-03"]}])
+        self.assertEqual(timeline["notes"][1]["terms"],
+                         [{"name": "MCP", "description": None, "other_days": []}])
+
+    def test_day_without_notes_is_empty(self) -> None:
+        self.assertEqual(meetup.timeline(self.db, "2026-01-01"), {"day": "2026-01-01", "notes": []})
+
+    def test_recent_lists_newest_first(self) -> None:
+        recent = meetup.recent_notes(self.db, 2)
+        self.assertEqual([note["text"] for note in recent], ["Lang Graph", "MCP for tool calling"])
+        self.assertEqual(recent[0]["terms"], ["LangGraph"])
+        self.assertEqual(recent[0]["day"], "2026-12-03")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -122,3 +122,43 @@ def save_note(
         describe_term(db, name, description)
     terms = [{**term_view(db, term_id, day), "new": is_new} for term_id, is_new in linked]
     return {"note_id": note_id, "day": day, "terms": terms}
+
+
+def term_ids_of_note(db: sqlite3.Connection, note_id: int) -> list[int]:
+    rows = db.execute("SELECT term_id FROM note_terms WHERE note_id = ? ORDER BY term_id", (note_id,))
+    return [term_id for (term_id,) in rows]
+
+
+def timeline(db: sqlite3.Connection, day: str) -> dict:
+    """A Day's Notes in the order they were saved, each Term with its description and other Days."""
+    rows = db.execute(
+        "SELECT id, saved_at, kind, text FROM notes WHERE day = ? ORDER BY saved_at, id", (day,)
+    ).fetchall()
+    notes = [
+        {
+            "id": note_id,
+            "time": saved_at[11:16],
+            "kind": kind,
+            "text": text,
+            "terms": [term_view(db, term_id, day) for term_id in term_ids_of_note(db, note_id)],
+        }
+        for note_id, saved_at, kind, text in rows
+    ]
+    return {"day": day, "notes": notes}
+
+
+def recent_notes(db: sqlite3.Connection, limit: int = 10) -> list[dict]:
+    """The latest Notes, newest first, so Hermes can find the Note I mean by "that"."""
+    rows = db.execute(
+        "SELECT id, saved_at, day, text FROM notes ORDER BY saved_at DESC, id DESC LIMIT ?", (limit,)
+    ).fetchall()
+    notes = []
+    for note_id, saved_at, day, text in rows:
+        names = db.execute(
+            "SELECT t.name FROM terms t JOIN note_terms nt ON nt.term_id = t.id "
+            "WHERE nt.note_id = ? ORDER BY t.id",
+            (note_id,),
+        )
+        notes.append({"id": note_id, "day": day, "time": saved_at[11:16], "text": text,
+                      "terms": [name for (name,) in names]})
+    return notes
