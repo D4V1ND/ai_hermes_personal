@@ -1,5 +1,7 @@
 # Score Notes with Jev through LangChain, not the Hermes Jev plugin
 
+_Status: parked on 2026-11-16. The first version scores nothing, because the outputs that read Scores are being redesigned. This decision stands for when scoring returns._
+
 Every Note is scored by TypeSafe's Jev from day one, called through LangChain's official `langchain-typesafe` integration (`TypeSafeClassifier`, TypeSafe API key) from a small script that Hermes runs. Hermes keeps everything else: Telegram capture, scheduling, research and delivering the Event Report. LangChain is limited to this one scoring step.
 
 ## Considered Options
