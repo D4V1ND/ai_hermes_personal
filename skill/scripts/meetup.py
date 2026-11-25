@@ -269,6 +269,21 @@ def rename_term(db: sqlite3.Connection, old: str, new: str, description: str | N
     return {"kept": new, "dropped": old_name, "merged": False, "notes_changed": changed}
 
 
+def write_graph(db: sqlite3.Connection, folder: Path) -> Path:
+    """Write the Graph View, one web page showing every Day and Term, into the data folder."""
+    notes = [
+        {"day": note["day"], "time": note["time"], "text": note["text"], "terms": note["terms"]}
+        for note in reversed(recent_notes(db, limit=-1))  # -1: no limit; reversed: oldest first
+    ]
+    data = {"notes": notes, "terms": {term["name"]: term["description"] for term in list_terms(db)}}
+    # "<" is written as <, so no Note can close the script block or open a tag.
+    embedded = json.dumps(data).replace("<", "\\u003c")
+    template = Path(__file__).with_name("graph_template.html").read_text(encoding="utf-8")
+    page = folder / "graph.html"
+    page.write_text(template.replace("__DATA__", embedded), encoding="utf-8")
+    return page
+
+
 def check_data_folder(folder: Path) -> Path:
     """Refuse a data folder inside a git repository, so Notes can never be committed."""
     folder = folder.expanduser().resolve()
@@ -336,6 +351,8 @@ def build_parser() -> argparse.ArgumentParser:
     delete = add("delete", "Delete a Note.")
     delete.add_argument("note_id", type=int)
 
+    add("graph", "Write the Graph View page into the data folder.")
+
     return parser
 
 
@@ -360,16 +377,25 @@ def run(db: sqlite3.Connection, args: argparse.Namespace) -> object:
             return merge_terms(db, args.a, args.b, args.keep)
         case "delete":
             return delete_note(db, args.note_id)
+        case "graph":
+            return {}  # main() writes the page after every command that changes something
     raise ValueError(f"Unknown command {args.command!r}.")
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        db = connect(data_folder() / "meetup.db")
+        folder = data_folder()
+        db = connect(folder / "meetup.db")
         try:
             with db:  # one command is one transaction: all of it is saved, or none
                 result = run(db, args)
+            if args.command not in ("terms", "day", "recent"):  # those three only read
+                try:
+                    result["graph"] = str(write_graph(db, folder))
+                except OSError as error:
+                    # The change is already saved. Say so, or Hermes would save the Note twice.
+                    result["graph_error"] = f"Saved, but the Graph View was not written: {error}"
         finally:
             db.close()
     except (LookupError, ValueError) as error:

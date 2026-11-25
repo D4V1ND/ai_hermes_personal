@@ -4,6 +4,7 @@ import contextlib
 import io
 import json
 import os
+import re
 import sys
 import tempfile
 import unittest
@@ -286,6 +287,58 @@ class CommandLineTest(unittest.TestCase):
         code, result = self.run_script("terms", data=None)
         self.assertEqual(code, 1)
         self.assertIn("MEETUP_DATA", result["error"])
+
+    def test_every_change_rewrites_the_graph_view(self) -> None:
+        page = Path(self.folder) / "graph.html"
+        _, saved = self.run_script("save", "--text", "LangGraph", "--term", "LangGraph")
+        self.assertEqual(Path(saved["graph"]), page.resolve())
+        self.assertIn("LangGraph", page.read_text(encoding="utf-8"))
+
+        self.run_script("rename", "LangGraph", "Graphs")
+        self.assertNotIn("LangGraph", page.read_text(encoding="utf-8"))
+
+        page.unlink()
+        self.run_script("terms")  # reading changes nothing, so it writes nothing
+        self.assertFalse(page.exists())
+        code, result = self.run_script("graph")
+        self.assertEqual(code, 0)
+        self.assertEqual(Path(result["graph"]), page.resolve())
+        self.assertTrue(page.exists())
+
+
+class GraphViewTest(StoreTest):
+    def setUp(self) -> None:
+        super().setUp()
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        self.folder = Path(folder.name)
+
+    def page_data(self) -> dict:
+        page = meetup.write_graph(self.db, self.folder).read_text(encoding="utf-8")
+        blocks = re.findall(r'<script type="application/json" id="data">(.*?)</script>', page, re.DOTALL)
+        self.assertEqual(len(blocks), 1)
+        return json.loads(blocks[0])
+
+    def test_page_holds_every_note_and_term(self) -> None:
+        meetup.save_note(self.db, "text", "LangGraph", ["LangGraph"], datetime(2026, 11, 12, 18, 42),
+                         {"LangGraph": "A library."})
+        meetup.save_note(self.db, "text", "MCP for tool calling", ["MCP"], datetime(2026, 11, 12, 19, 5))
+        meetup.save_note(self.db, "voice", "Lang Graph", ["langgraph"], datetime(2026, 12, 3, 19, 20))
+        self.assertEqual(self.page_data(), {
+            "notes": [
+                {"day": "2026-11-12", "time": "18:42", "text": "LangGraph", "terms": ["LangGraph"]},
+                {"day": "2026-11-12", "time": "19:05", "text": "MCP for tool calling", "terms": ["MCP"]},
+                {"day": "2026-12-03", "time": "19:20", "text": "Lang Graph", "terms": ["LangGraph"]},
+            ],
+            "terms": {"LangGraph": "A library.", "MCP": None},
+        })
+
+    def test_a_note_containing_html_cannot_break_the_page(self) -> None:
+        nasty = "</script><script>alert(1)</script><!-- ü"
+        meetup.save_note(self.db, "text", nasty, [nasty], datetime(2026, 11, 12, 18, 42))
+        data = self.page_data()  # exactly one data block, and it still parses
+        self.assertEqual(data["notes"][0]["text"], nasty)
+        self.assertNotIn("alert(1)</script>", meetup.write_graph(self.db, self.folder).read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

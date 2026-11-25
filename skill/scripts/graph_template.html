@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Graph View</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap">
+<style>
+/* Layout: the picture and the "what you clicked" panel sit side by side.
+   Days are squares, Terms are circles. */
+:root {
+  --bg: #f2f4f8;
+  --surface: #ffffff;
+  --fg: #161d29;
+  --muted: #566275;
+  --rule: #d5dbe5;
+  --line: #aab4c3;
+  --day: #b4690e;
+  --day-soft: #fbefdc;
+  --term: #3d4fc4;
+  --term-soft: #e6e9fb;
+  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-body: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #11151c; --surface: #19202a; --fg: #e7ecf3; --muted: #9aa6b8;
+    --rule: #2c3644; --line: #4a5668;
+    --day: #e5a445; --day-soft: #3a2c14; --term: #98a4ff; --term-soft: #232a52;
+    color-scheme: dark;
+  }
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.55;
+  padding: 32px 16px 48px;
+}
+.page { max-width: 880px; margin-inline: auto; display: grid; gap: 28px; }
+p, h1, h2, ol, ul { margin: 0; }
+ol, ul { padding: 0; list-style: none; }
+
+.intro { display: grid; gap: 10px; }
+h1 { font-family: var(--font-display); font-weight: 600; font-size: 30px; line-height: 1.15; }
+.intro p { max-width: 62ch; color: var(--muted); }
+.intro strong { color: var(--fg); font-weight: 600; }
+
+.stage { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 700px) { .stage { grid-template-columns: minmax(0, 1fr); } }
+
+.picture { display: grid; gap: 12px; min-width: 0; }
+.canvas { background: var(--surface); border: 1px solid var(--rule); border-radius: 12px; }
+svg { display: block; width: 100%; height: auto; touch-action: none; }
+.edge { stroke: var(--line); stroke-width: 2; fill: none; }
+.edge.on { stroke: var(--fg); stroke-width: 2.5; }
+.node { cursor: pointer; outline: none; }
+.node text { fill: var(--fg); font-family: var(--font-body); font-size: 13px; font-weight: 500; }
+.node .shape { stroke-width: 2; }
+.node.day .shape { fill: var(--day-soft); stroke: var(--day); }
+.node.term .shape { fill: var(--term-soft); stroke: var(--term); }
+.node.day.on .shape { fill: var(--day); }
+.node.term.on .shape { fill: var(--term); }
+.node.on text { font-weight: 600; }
+.node:focus-visible .shape { stroke: var(--fg); stroke-width: 3; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 7px; }
+.key { width: 13px; height: 13px; border: 2px solid; display: inline-block; }
+.key.day { border-color: var(--day); background: var(--day-soft); border-radius: 4px; }
+.key.term { border-color: var(--term); background: var(--term-soft); border-radius: 50%; }
+.count { font-weight: 500; font-variant-numeric: tabular-nums; }
+
+.jump:focus-visible { outline: 2px solid var(--term); outline-offset: 2px; }
+
+.panel { min-width: 0; display: grid; gap: 10px; align-content: start; padding: 4px 0 0 4px; }
+.kind { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+.kind.day { color: var(--day); }
+.kind.term { color: var(--term); }
+h2 { font-family: var(--font-display); font-weight: 600; font-size: 24px; line-height: 1.2; overflow-wrap: anywhere; }
+.lead { max-width: 46ch; }
+.sub { color: var(--muted); font-size: 14px; }
+.timeline, .mentions { display: grid; gap: 12px; border-top: 1px solid var(--rule); padding-top: 12px; }
+.timeline li { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 10px; }
+.timeline li > div { display: grid; gap: 4px; min-width: 0; }
+.mentions li { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
+.time { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.note { font-weight: 500; overflow-wrap: anywhere; }
+.explain { font-size: 14px; color: var(--muted); }
+.also { color: var(--fg); }
+.jump {
+  font: inherit; font-weight: 600; color: var(--term); background: none; border: 0; padding: 0;
+  cursor: pointer; text-decoration: underline; text-underline-offset: 3px; text-align: left;
+}
+.jump.day { color: var(--day); }
+</style>
+</head>
+<body>
+<main class="page">
+  <header class="intro">
+    <h1>Graph View</h1>
+    <p>Each <strong>Day</strong> is one dot and each <strong>Term</strong> is one dot. A line means "this Term came up on this Day". Click any dot, or drag it.</p>
+  </header>
+
+  <section class="stage">
+    <div class="picture">
+      <div class="canvas">
+        <svg id="graph" role="group" aria-label="Graph View"></svg>
+      </div>
+      <div class="legend">
+        <span><i class="key day"></i>Day</span>
+        <span><i class="key term"></i>Term</span>
+        <span class="count" id="count"></span>
+      </div>
+    </div>
+    <div class="panel" id="panel" aria-live="polite"></div>
+  </section>
+</main>
+
+<!-- meetup.py puts the Notes and Terms here. The page reads nothing else. -->
+<script type="application/json" id="data">__DATA__</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"
+        integrity="sha512-vc58qvvBdrDR4etbxMdlTt4GBQk1qjvyORR2nrsPsFPyrs+/u5c3+1Ct6upOgdZoIl7eq6k3a1UPDSNAQi/32A=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script>
+(function () {
+  var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  var data = JSON.parse(document.getElementById('data').textContent);
+  var notes = data.notes;   // [{day, time, text, terms: [names]}], in the order they were saved
+  var TERMS = data.terms;   // {name: description or null}
+
+  var panel = document.getElementById('panel');
+  var count = document.getElementById('count');
+
+  function esc(s) {
+    return String(s).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  }
+  function uniq(a) { return a.filter(function (v, i) { return a.indexOf(v) === i; }); }
+  function plural(n, word) { return n + ' ' + word + (n === 1 ? '' : 's'); }
+
+  var days = uniq(notes.map(function (n) { return n.day; })).sort();
+  var terms = Object.keys(TERMS);
+  var links = [];   // one per "this Term came up on this Day"
+  days.forEach(function (d) {
+    var names = [];
+    notes.forEach(function (n) { if (n.day === d) names = names.concat(n.terms); });
+    uniq(names).forEach(function (t) { links.push({ source: 'day:' + d, target: 'term:' + t }); });
+  });
+
+  // The year is only shown once the Notes span more than one year.
+  var manyYears = uniq(days.map(function (d) { return d.slice(0, 4); })).length > 1;
+  function fmt(d) {
+    var p = d.split('-');
+    return Number(p[2]) + ' ' + MONTHS[Number(p[1]) - 1] + (manyYears ? ' ' + p[0] : '');
+  }
+  function daysOf(term) {
+    return uniq(notes.filter(function (n) { return n.terms.indexOf(term) > -1; })
+      .map(function (n) { return n.day; })).sort();
+  }
+  function describe(term) { return TERMS[term] ? esc(TERMS[term]) : 'No description yet.'; }
+
+  function panelDay(d) {
+    var list = notes.filter(function (n) { return n.day === d; });
+    var h = '<p class="kind day">Day</p><h2>' + fmt(d) + '</h2>' +
+      '<p class="sub">Its Timeline: ' + plural(list.length, 'Note') + ', in the order you sent them.</p><ol class="timeline">';
+    list.forEach(function (n) {
+      h += '<li><span class="time">' + esc(n.time) + '</span><div><p class="note">' + esc(n.text) + '</p>';
+      n.terms.forEach(function (t) {
+        var others = daysOf(t).filter(function (x) { return x !== d; });
+        h += '<p class="explain"><button type="button" class="jump" data-key="term:' + esc(t) + '">' + esc(t) + '</button> ' +
+          describe(t) + ' <span class="also">' +
+          (others.length ? 'Also on ' + others.map(fmt).join(', ') + '.' : 'Only on this Day so far.') + '</span></p>';
+      });
+      h += '</div></li>';
+    });
+    return h + '</ol>';
+  }
+
+  function panelTerm(t) {
+    var list = notes.filter(function (n) { return n.terms.indexOf(t) > -1; });
+    var h = '<p class="kind term">Term</p><h2>' + esc(t) + '</h2><p class="lead">' + describe(t) + '</p>' +
+      '<p class="sub">One dot, ' + plural(daysOf(t).length, 'line') + '. It came up in:</p><ul class="mentions">';
+    list.forEach(function (n) {
+      h += '<li><button type="button" class="jump day" data-key="day:' + n.day + '">' + fmt(n.day) + '</button>' +
+        '<span class="time">' + esc(n.time) + '</span><span class="note">' + esc(n.text) + '</span></li>';
+    });
+    return h + '</ul>';
+  }
+
+  count.textContent = (days.length + terms.length) + ' dots: ' + plural(days.length, 'Day') + ' and ' +
+    plural(terms.length, 'Term') + '. ' + plural(links.length, 'line') + '.';
+
+  if (!notes.length) {
+    panel.innerHTML = '<p class="sub">No Notes yet. Send one to the bot, then reload this page.</p>';
+    return;
+  }
+  if (!window.d3) {
+    panel.innerHTML = '<p class="sub">The picture needs the D3 library from the internet, and it did not load. ' +
+      'Check the connection, then reload this page.</p>';
+    return;
+  }
+
+  var nodes = days.map(function (d) { return { key: 'day:' + d, kind: 'day', label: fmt(d) }; })
+    .concat(terms.map(function (t) { return { key: 'term:' + t, kind: 'term', label: t }; }));
+
+  // ponytail: the picture grows with the number of dots and is scaled to fit, so past
+  // roughly 60 dots the labels get small. Add d3.zoom (pan and zoom) when that happens.
+  var W = Math.max(400, Math.round(Math.sqrt(nodes.length) * 150));
+  var H = Math.round(W * 0.675);
+  var svg = d3.select('#graph').attr('viewBox', '0 0 ' + W + ' ' + H);
+
+  var edge = svg.selectAll('line').data(links).join('line').attr('class', 'edge');
+  var node = svg.selectAll('g').data(nodes).join('g')
+    .attr('class', function (d) { return 'node ' + d.kind; })
+    .attr('data-key', function (d) { return d.key; })
+    .attr('tabindex', 0)
+    .attr('role', 'button')
+    .attr('aria-label', function (d) { return d.label + ', ' + (d.kind === 'day' ? 'Day' : 'Term'); });
+  node.filter(function (d) { return d.kind === 'day'; }).append('rect')
+    .attr('class', 'shape').attr('x', -15).attr('y', -15).attr('width', 30).attr('height', 30).attr('rx', 7);
+  node.filter(function (d) { return d.kind === 'term'; }).append('circle').attr('class', 'shape').attr('r', 16);
+  node.append('text').attr('y', 34).attr('text-anchor', 'middle').text(function (d) { return d.label; });
+
+  function place() {
+    nodes.forEach(function (d) {   // keep every dot and its label inside the picture
+      d.x = Math.max(40, Math.min(W - 40, d.x));
+      d.y = Math.max(24, Math.min(H - 44, d.y));
+    });
+    edge.attr('x1', function (l) { return l.source.x; }).attr('y1', function (l) { return l.source.y; })
+      .attr('x2', function (l) { return l.target.x; }).attr('y2', function (l) { return l.target.y; });
+    node.attr('transform', function (d) { return 'translate(' + d.x + ',' + d.y + ')'; });
+  }
+
+  var sim = d3.forceSimulation(nodes)
+    .force('link', d3.forceLink(links).id(function (d) { return d.key; }).distance(100))
+    .force('charge', d3.forceManyBody().strength(-320))
+    .force('collide', d3.forceCollide(42))
+    .force('x', d3.forceX(W / 2).strength(0.06))
+    .force('y', d3.forceY(H / 2).strength(0.09))
+    .on('tick', place);
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    sim.stop().tick(300);   // no animation: jump straight to the settled layout
+    place();
+  }
+
+  node.call(d3.drag()
+    .on('start', function (e, d) { if (!e.active) sim.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+    .on('drag', function (e, d) { d.fx = e.x; d.fy = e.y; })
+    .on('end', function (e, d) { if (!e.active) sim.alphaTarget(0); d.fx = null; d.fy = null; }));
+
+  var sel = 'day:' + days[days.length - 1];   // start on the latest Day
+
+  function render() {
+    var i = sel.indexOf(':'), kind = sel.slice(0, i), id = sel.slice(i + 1);
+    node.classed('on', function (d) { return d.key === sel; })
+      .attr('aria-pressed', function (d) { return d.key === sel; });
+    edge.classed('on', function (l) { return l.source.key === sel || l.target.key === sel; });
+    panel.innerHTML = kind === 'day' ? panelDay(id) : panelTerm(id);
+  }
+
+  function pick(el) {
+    var target = el.closest ? el.closest('[data-key]') : null;
+    if (!target) return false;
+    sel = target.getAttribute('data-key');
+    render();
+    return true;
+  }
+
+  document.addEventListener('click', function (e) { pick(e.target); });
+  document.getElementById('graph').addEventListener('keydown', function (e) {
+    if ((e.key === 'Enter' || e.key === ' ') && pick(e.target)) e.preventDefault();
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
