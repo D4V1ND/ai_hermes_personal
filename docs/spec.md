@@ -81,7 +81,7 @@ After any edit, a Term that no Note points to is removed.
 - The picture is 3D. Every Day is one dot (orange, larger) and every Term is one dot (blue, smaller). A line joins a Term to each Day it came up on. The dots arrange themselves. I can turn the picture, zoom, and drag a dot.
 - Each dot has a name tag with the legend's key: a square for a Day, a circle for a Term.
 - Clicking a Day shows its Timeline, as in the Telegram answer. Clicking a Term shows its description and the Notes it came up in.
-- Colours, legend, count line and click panel follow the approved example page ("Graph View Example"). The picture itself replaces the flat one in the example.
+- What the page shows follows the approved example page ("Graph View Example"): the picture, a legend, the counts, and a panel for the clicked dot. How it looks does not: the page has its own design, with the picture filling the left and the panel on the right (below the picture on a phone), in a dark and a light theme that follow the PC's setting.
 - The page only shows. Nothing I do on it is saved. Changes are made by chat (see Edit).
 
 ## Tech Stack
