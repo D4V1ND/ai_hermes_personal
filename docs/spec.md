@@ -78,9 +78,11 @@ After any edit, a Term that no Note points to is removed.
 ### Graph View
 
 - A single HTML file, written into the data folder and rewritten after every change. I open it in a browser on the PC.
-- Every Day is one dot (square) and every Term is one dot (circle). A line joins a Term to each Day it came up on. The dots arrange themselves.
+- The picture is 3D. Every Day is one dot (orange, larger) and every Term is one dot (blue, smaller). A line joins a Term to each Day it came up on. The dots arrange themselves. I can turn the picture, zoom, and drag a dot.
+- Each dot has a name tag with the legend's key: a square for a Day, a circle for a Term.
 - Clicking a Day shows its Timeline, as in the Telegram answer. Clicking a Term shows its description and the Notes it came up in.
-- Behaviour and look follow the approved example page ("Graph View Example").
+- Colours, legend, count line and click panel follow the approved example page ("Graph View Example"). The picture itself replaces the flat one in the example.
+- The page only shows. Nothing I do on it is saved. Changes are made by chat (see Edit).
 
 ## Tech Stack
 

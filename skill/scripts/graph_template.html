@@ -6,8 +6,8 @@
 <title>Graph View</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap">
 <style>
-/* Layout: the picture and the "what you clicked" panel sit side by side.
-   Days are squares, Terms are circles. */
+/* Layout: the 3D picture and the "what you clicked" panel sit side by side.
+   Days are the larger orange dots, Terms the smaller blue ones. */
 :root {
   --bg: #f2f4f8;
   --surface: #ffffff;
@@ -40,7 +40,7 @@ body {
   line-height: 1.55;
   padding: 32px 16px 48px;
 }
-.page { max-width: 880px; margin-inline: auto; display: grid; gap: 28px; }
+.page { max-width: 1040px; margin-inline: auto; display: grid; gap: 28px; }
 p, h1, h2, ol, ul { margin: 0; }
 ol, ul { padding: 0; list-style: none; }
 
@@ -49,23 +49,24 @@ h1 { font-family: var(--font-display); font-weight: 600; font-size: 30px; line-h
 .intro p { max-width: 62ch; color: var(--muted); }
 .intro strong { color: var(--fg); font-weight: 600; }
 
-.stage { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 20px; align-items: start; }
-@media (max-width: 700px) { .stage { grid-template-columns: minmax(0, 1fr); } }
+.stage { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+@media (max-width: 760px) { .stage { grid-template-columns: minmax(0, 1fr); } }
 
 .picture { display: grid; gap: 12px; min-width: 0; }
-.canvas { background: var(--surface); border: 1px solid var(--rule); border-radius: 12px; }
-svg { display: block; width: 100%; height: auto; touch-action: none; }
-.edge { stroke: var(--line); stroke-width: 2; fill: none; }
-.edge.on { stroke: var(--fg); stroke-width: 2.5; }
-.node { cursor: pointer; outline: none; }
-.node text { fill: var(--fg); font-family: var(--font-body); font-size: 13px; font-weight: 500; }
-.node .shape { stroke-width: 2; }
-.node.day .shape { fill: var(--day-soft); stroke: var(--day); }
-.node.term .shape { fill: var(--term-soft); stroke: var(--term); }
-.node.day.on .shape { fill: var(--day); }
-.node.term.on .shape { fill: var(--term); }
-.node.on text { font-weight: 600; }
-.node:focus-visible .shape { stroke: var(--fg); stroke-width: 3; }
+.canvas { position: relative; overflow: hidden; background: var(--surface); border: 1px solid var(--rule); border-radius: 12px; }
+.labels { position: absolute; inset: 0; pointer-events: none; }
+.label {
+  position: absolute; left: 0; top: 0; display: inline-flex; align-items: center; gap: 5px;
+  font: 500 12.5px/1.5 var(--font-body); color: var(--fg); white-space: nowrap;
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+  border: 0; border-radius: 999px; padding: 1px 8px 1px 6px; cursor: pointer; pointer-events: auto;
+}
+.label[hidden] { display: none; }
+.label span { max-width: 20ch; overflow: hidden; text-overflow: ellipsis; }
+.label .key { width: 8px; height: 8px; flex: none; }
+.label.on { font-weight: 600; color: var(--surface); background: var(--fg); }
+.label:focus-visible, .jump:focus-visible { outline: 2px solid var(--term); outline-offset: 2px; }
+.fail { padding: 24px; color: var(--muted); }
 
 .legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--muted); }
 .legend span { display: inline-flex; align-items: center; gap: 7px; }
@@ -73,8 +74,6 @@ svg { display: block; width: 100%; height: auto; touch-action: none; }
 .key.day { border-color: var(--day); background: var(--day-soft); border-radius: 4px; }
 .key.term { border-color: var(--term); background: var(--term-soft); border-radius: 50%; }
 .count { font-weight: 500; font-variant-numeric: tabular-nums; }
-
-.jump:focus-visible { outline: 2px solid var(--term); outline-offset: 2px; }
 
 .panel { min-width: 0; display: grid; gap: 10px; align-content: start; padding: 4px 0 0 4px; }
 .kind { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
@@ -102,13 +101,14 @@ h2 { font-family: var(--font-display); font-weight: 600; font-size: 24px; line-h
 <main class="page">
   <header class="intro">
     <h1>Graph View</h1>
-    <p>Each <strong>Day</strong> is one dot and each <strong>Term</strong> is one dot. A line means "this Term came up on this Day". Click any dot, or drag it.</p>
+    <p>Each <strong>Day</strong> is one dot and each <strong>Term</strong> is one dot. A line means "this Term came up on this Day". Drag the background to turn the picture, scroll to zoom, click a dot to read it.</p>
   </header>
 
   <section class="stage">
     <div class="picture">
       <div class="canvas">
-        <svg id="graph" role="group" aria-label="Graph View"></svg>
+        <div id="graph" aria-hidden="true"></div>
+        <div class="labels" id="labels" role="group" aria-label="Dots of the Graph View"></div>
       </div>
       <div class="legend">
         <span><i class="key day"></i>Day</span>
@@ -122,8 +122,9 @@ h2 { font-family: var(--font-display); font-weight: 600; font-size: 24px; line-h
 
 <!-- meetup.py puts the Notes and Terms here. The page reads nothing else. -->
 <script type="application/json" id="data">__DATA__</script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"
-        integrity="sha512-vc58qvvBdrDR4etbxMdlTt4GBQk1qjvyORR2nrsPsFPyrs+/u5c3+1Ct6upOgdZoIl7eq6k3a1UPDSNAQi/32A=="
+<!-- 3d-force-graph draws the 3D picture. The checksum makes the browser refuse any other file. -->
+<script src="https://cdn.jsdelivr.net/npm/3d-force-graph@1.80.2/dist/3d-force-graph.min.js"
+        integrity="sha256-rptcqdUlCVl40PXSP5E23+F3sulJdzEC/78UXdd3bwQ="
         crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script>
 (function () {
@@ -199,84 +200,136 @@ h2 { font-family: var(--font-display); font-weight: 600; font-size: 24px; line-h
     panel.innerHTML = '<p class="sub">No Notes yet. Send one to the bot, then reload this page.</p>';
     return;
   }
-  if (!window.d3) {
-    panel.innerHTML = '<p class="sub">The picture needs the D3 library from the internet, and it did not load. ' +
-      'Check the connection, then reload this page.</p>';
-    return;
-  }
 
   var nodes = days.map(function (d) { return { key: 'day:' + d, kind: 'day', label: fmt(d) }; })
     .concat(terms.map(function (t) { return { key: 'term:' + t, kind: 'term', label: t }; }));
-
-  // ponytail: the picture grows with the number of dots and is scaled to fit, so past
-  // roughly 60 dots the labels get small. Add d3.zoom (pan and zoom) when that happens.
-  var W = Math.max(400, Math.round(Math.sqrt(nodes.length) * 150));
-  var H = Math.round(W * 0.675);
-  var svg = d3.select('#graph').attr('viewBox', '0 0 ' + W + ' ' + H);
-
-  var edge = svg.selectAll('line').data(links).join('line').attr('class', 'edge');
-  var node = svg.selectAll('g').data(nodes).join('g')
-    .attr('class', function (d) { return 'node ' + d.kind; })
-    .attr('data-key', function (d) { return d.key; })
-    .attr('tabindex', 0)
-    .attr('role', 'button')
-    .attr('aria-label', function (d) { return d.label + ', ' + (d.kind === 'day' ? 'Day' : 'Term'); });
-  node.filter(function (d) { return d.kind === 'day'; }).append('rect')
-    .attr('class', 'shape').attr('x', -15).attr('y', -15).attr('width', 30).attr('height', 30).attr('rx', 7);
-  node.filter(function (d) { return d.kind === 'term'; }).append('circle').attr('class', 'shape').attr('r', 16);
-  node.append('text').attr('y', 34).attr('text-anchor', 'middle').text(function (d) { return d.label; });
-
-  function place() {
-    nodes.forEach(function (d) {   // keep every dot and its label inside the picture
-      d.x = Math.max(40, Math.min(W - 40, d.x));
-      d.y = Math.max(24, Math.min(H - 44, d.y));
-    });
-    edge.attr('x1', function (l) { return l.source.x; }).attr('y1', function (l) { return l.source.y; })
-      .attr('x2', function (l) { return l.target.x; }).attr('y2', function (l) { return l.target.y; });
-    node.attr('transform', function (d) { return 'translate(' + d.x + ',' + d.y + ')'; });
-  }
-
-  var sim = d3.forceSimulation(nodes)
-    .force('link', d3.forceLink(links).id(function (d) { return d.key; }).distance(100))
-    .force('charge', d3.forceManyBody().strength(-320))
-    .force('collide', d3.forceCollide(42))
-    .force('x', d3.forceX(W / 2).strength(0.06))
-    .force('y', d3.forceY(H / 2).strength(0.09))
-    .on('tick', place);
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    sim.stop().tick(300);   // no animation: jump straight to the settled layout
-    place();
-  }
-
-  node.call(d3.drag()
-    .on('start', function (e, d) { if (!e.active) sim.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
-    .on('drag', function (e, d) { d.fx = e.x; d.fy = e.y; })
-    .on('end', function (e, d) { if (!e.active) sim.alphaTarget(0); d.fx = null; d.fy = null; }));
-
   var sel = 'day:' + days[days.length - 1];   // start on the latest Day
+
+  // Every dot has a name tag: an ordinary button laid over the 3D picture. It carries the
+  // square or round key from the legend, and it makes each dot reachable by keyboard.
+  var labels = document.getElementById('labels');
+  nodes.forEach(function (n) {
+    var tag = document.createElement('button'), key = document.createElement('i'), name = document.createElement('span');
+    tag.type = 'button';
+    tag.className = 'label';
+    tag.hidden = true;
+    tag.setAttribute('data-key', n.key);
+    tag.setAttribute('aria-label', n.label + ', ' + (n.kind === 'day' ? 'Day' : 'Term'));
+    key.className = 'key ' + n.kind;
+    name.textContent = n.label;
+    tag.append(key, name);
+    labels.appendChild(tag);
+    n.tag = tag;
+  });
+
+  var REL = 7;   // dot size: radius = REL * cube root of size(n)
+  function size(n) { return (n.kind === 'day' ? 2 : 1) * (n.key === sel ? 2.2 : 1); }
+  function touches(l) { return (l.source.key || l.source) === sel || (l.target.key || l.target) === sel; }
+
+  var box = document.querySelector('.canvas');
+  var still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var Graph = null;
+  try {
+    if (!window.ForceGraph3D) {
+      throw new Error('The picture needs a drawing library from the internet, and it did not load. ' +
+        'Check the connection, then reload this page.');
+    }
+    Graph = new ForceGraph3D(document.getElementById('graph'), { controlType: 'orbit' })
+      .nodeId('key')
+      .nodeLabel(null)
+      .nodeRelSize(REL)
+      .nodeOpacity(1)
+      .nodeResolution(20)
+      .linkOpacity(0.75)
+      .showNavInfo(false)
+      .warmupTicks(still ? 300 : 150)   // settle the layout before the first picture
+      .cooldownTicks(still ? 0 : Infinity)
+      .cooldownTime(3000)
+      .onNodeClick(function (n) { sel = n.key; render(); })
+      .graphData({ nodes: nodes, links: links });
+    Graph.d3Force('link').distance(55);     // room for the name tags between dots
+    Graph.d3Force('charge').strength(-90);
+  } catch (error) {
+    Graph = null;
+    document.getElementById('graph').innerHTML = '<p class="fail">' + esc(error.message || error) + '</p>';
+  }
+
+  // Colours come from the page's own light and dark themes.
+  function paint() {
+    if (!Graph) return;
+    var css = getComputedStyle(document.documentElement), c = {};
+    ['surface', 'line', 'fg', 'day', 'term'].forEach(function (k) { c[k] = css.getPropertyValue('--' + k).trim(); });
+    Graph.backgroundColor(c.surface)
+      .nodeColor(function (n) { return c[n.kind]; })
+      .nodeVal(size)
+      .linkColor(function (l) { return touches(l) ? c.fg : c.line; })
+      .linkWidth(function (l) { return touches(l) ? 1.2 : 0.4; });
+  }
 
   function render() {
     var i = sel.indexOf(':'), kind = sel.slice(0, i), id = sel.slice(i + 1);
-    node.classed('on', function (d) { return d.key === sel; })
-      .attr('aria-pressed', function (d) { return d.key === sel; });
-    edge.classed('on', function (l) { return l.source.key === sel || l.target.key === sel; });
+    nodes.forEach(function (n) {
+      n.tag.classList.toggle('on', n.key === sel);
+      n.tag.setAttribute('aria-pressed', n.key === sel);
+    });
     panel.innerHTML = kind === 'day' ? panelDay(id) : panelTerm(id);
+    paint();
   }
 
-  function pick(el) {
-    var target = el.closest ? el.closest('[data-key]') : null;
-    if (!target) return false;
-    sel = target.getAttribute('data-key');
-    render();
-    return true;
-  }
-
-  document.addEventListener('click', function (e) { pick(e.target); });
-  document.getElementById('graph').addEventListener('keydown', function (e) {
-    if ((e.key === 'Enter' || e.key === ' ') && pick(e.target)) e.preventDefault();
+  document.addEventListener('click', function (e) {
+    var target = e.target.closest ? e.target.closest('[data-key]') : null;
+    if (target) { sel = target.getAttribute('data-key'); render(); }
   });
 
   render();
+  if (!Graph) {   // no picture: the name tags become a plain list, so the panel still works
+    nodes.forEach(function (n) { n.tag.hidden = false; n.tag.style.position = 'static'; });
+    labels.style.cssText = 'position: static; display: flex; flex-wrap: wrap; gap: 8px; padding: 0 24px 24px; pointer-events: auto;';
+    return;
+  }
+
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', paint);
+
+  function resize() {
+    var w = box.clientWidth, h = Math.max(300, Math.min(640, Math.round(w * 0.8)));
+    if (w && (w !== Graph.width() || h !== Graph.height())) Graph.width(w).height(h);
+  }
+  resize();
+  new ResizeObserver(resize).observe(box);
+
+  var fitted = false;
+  function fit() {   // once, when the layout first exists: bring every dot into view
+    if (fitted) return;
+    fitted = true;
+    // One frame later: the library moves the dots to their places only after this callback.
+    requestAnimationFrame(function () { Graph.zoomToFit(0, 45); });
+  }
+  Graph.onEngineTick(fit).onEngineStop(fit);
+
+  // Keep each name tag just under its dot while the picture turns.
+  // ponytail: every tag is moved on every frame, which is fine up to a few hundred dots.
+  // Beyond that, show tags only for the selected dot and its neighbours.
+  function placeTags() {
+    requestAnimationFrame(placeTags);
+    var cam = Graph.camera(), eye = cam.position, at = Graph.controls().target;
+    var fx = at.x - eye.x, fy = at.y - eye.y, fz = at.z - eye.z, flen = Math.hypot(fx, fy, fz) || 1;
+    var zoom = Graph.height() / 2 / Math.tan(cam.fov * Math.PI / 360);   // pixels per unit at depth 1
+    var near = Infinity, far = 0;
+    nodes.forEach(function (n) {   // depth: how far in front of the camera the dot is
+      n.depth = n.x === undefined ? -1 : ((n.x - eye.x) * fx + (n.y - eye.y) * fy + (n.z - eye.z) * fz) / flen;
+      if (n.depth > 0) { near = Math.min(near, n.depth); far = Math.max(far, n.depth); }
+    });
+    nodes.forEach(function (n) {
+      n.tag.hidden = n.depth <= 0;
+      if (n.tag.hidden) return;
+      var p = Graph.graph2ScreenCoords(n.x, n.y, n.z);
+      var radius = REL * Math.cbrt(size(n)) * zoom / n.depth;
+      n.tag.style.transform = 'translate(calc(' + p.x.toFixed(1) + 'px - 50%), ' + (p.y + radius + 4).toFixed(1) + 'px)';
+      n.tag.style.opacity = n.key === sel ? 1 : (1 - 0.5 * (n.depth - near) / (far - near || 1)).toFixed(2);   // farther is fainter
+      n.tag.style.zIndex = n.key === sel ? 100000 : Math.max(1, Math.round(50000 - n.depth));
+    });
+  }
+  placeTags();
 })();
 </script>
 </body>
