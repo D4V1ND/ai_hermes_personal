@@ -22,7 +22,7 @@ Phase 5 only needs Phase 1. If your Hermes setup is not ready when Phase 1 ends,
 ## Decisions made in this plan
 
 1. **Graph library: 3d-force-graph, version 1.80.2, loaded from jsDelivr with a checksum.** Changed on 25 Nov 2026: the picture is 3D, so D3 (flat only) was replaced. 3d-force-graph is the usual library for a 3D graph that arranges itself and can be turned, zoomed and dragged. The name tags are ordinary buttons laid over the picture, so every dot stays reachable by keyboard and keeps the square or round key from the approved example.
-2. **The real Graph View keeps what the example shows (legend, counts, click panel) around a 3D picture, in its own design.** Changed on 25 Nov 2026: a serif for names and numbers, a monospace for small labels, one flat background, and no colours other than amber for a Day and blue for a Term. It drops the two parts that only explain the example: the "Send a new Note" button and the "What is stored behind the picture" table.
+2. **The real Graph View keeps what the example shows (legend, counts, click panel) around a 3D picture, in its own design.** Changed on 25 Nov 2026, after looking at what recent award-winning sites (Awwwards Sites of the Day) have in common: the page is set like a printed index. It is black and white plus one colour (orange for a Day; a Term is the text colour), with very large type against small monospace labels, a catalogue number for every dot, and the selected name printed large behind the picture. The page opens on the Index, a list of every Day and Term. It drops the two parts that only explain the example: the "Send a new Note" button and the "What is stored behind the picture" table.
 3. **"Inside this repository" is checked as "inside any git repository".** The script walks up from the data folder and refuses if it finds a `.git` folder. This still works after `skill/` is copied into Hermes's skills folder.
 4. **Term names ignore upper and lower case**, so "langgraph" cannot become a second Term next to "LangGraph". Deciding that "Lang Graph" means LangGraph stays Hermes's job, as the spec says.
 
@@ -149,7 +149,7 @@ Tests use an in-memory SQLite database. Functions take the database connection a
 
 | Task | Work |
 |---|---|
-| 5.1 | `graph_template.html`: legend, counts and click panel around a 3D picture. 3d-force-graph places the dots. The data comes from one embedded JSON block |
+| 5.1 | `graph_template.html`: the Index, legend, counts and click panel around a 3D picture. 3d-force-graph places the dots. The data comes from one embedded JSON block |
 | 5.2 | `write_graph()` and the `graph` command. Every changing command rewrites the page. Note text is embedded safely, so a Note containing HTML cannot break the page. One test for that |
 | 5.3 | Load the example data with `save --at …` into a throwaway folder and generate the page |
 

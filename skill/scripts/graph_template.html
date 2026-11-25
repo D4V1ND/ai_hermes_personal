@@ -5,52 +5,40 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark light">
 <title>Graph View · Meetup Intelligence</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='5' fill='%23f0a94a'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='3' y='3' width='10' height='10' fill='%23ff4d00'/%3E%3C/svg%3E">
+<!-- The theme picked with the button on the page, if any. Set before anything is drawn, so the page does not flash. -->
+<script>try { var t = localStorage['meetup-graph-theme']; if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
 <style>
-/* Design: an editorial star chart. One flat ink (or paper) background, a serif for names
-   and numbers, a monospace for small labels. The only colours are the two that carry
-   meaning: amber for a Day, blue for a Term.
-   Layout: the 3D picture fills the left, the panel for the clicked dot sits on the right.
-   Spacing steps: 4, 8, 12, 16, 20, 24, 32, 40, 48, 64. */
+/* Design: "the Index". The page is set like a printed catalogue of what I heard, with one
+   live 3D plate. It follows what recent award-winning sites have in common:
+   - one idea, carried through: every Day and Term has a catalogue number (D01, T02);
+   - black and white plus ONE colour (orange, a Day). A Term is the text colour;
+   - very large tight type against very small monospace labels, and hairline rules;
+   - type behind the objects: the selected name is printed huge behind the picture;
+   - one signature moment: picking a dot glides the camera to it and corner marks lock on.
+   Layout: bar on top, the picture on the left with its counts below, the panel on the right.
+   Spacing steps: 4, 8, 12, 16, 24, 32, 48, 64.
+   Colours use light-dark(), which needs a browser from 2024 or later. */
 :root {
-  color-scheme: dark;
-  --bg: #0b0c10;
-  --ink: #f1efe9;
-  --muted: #9a9ca6;
-  --rule: #24262e;
-  --day: #f0a94a;
-  --term: #8c9aff;
-  --line: #4a4e5c;
-  --line-on: #f1efe9;
-  --on-accent: #0b0c10;
-  --halo-blend: screen;
-  --halo-strength: 0.5;
-  --grain: 0.06;
-  --font-display: "Instrument Serif", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
-  --font-body: Geist, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "Geist Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
-  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  color-scheme: dark light;   /* follows the PC; the button in the top bar overrides it */
+  --bg: light-dark(#efeee9, #0c0c0c);
+  --ink: light-dark(#0f0f0f, #ecebe6);
+  --muted: light-dark(#63635e, #8f8f8a);
+  --rule: light-dark(#d1cfc8, #2a2a28);
+  --dim: light-dark(#b5b3ac, #4c4c49);          /* a Term that is not joined to the selected dot */
+  --accent: light-dark(#f04400, #ff4d00);       /* the one colour: a Day */
+  --accent-dim: light-dark(#eeb39b, #6e2a0b);   /* a Day that is not joined to the selected dot */
+  --accent-ink: light-dark(#bf3500, #ff5a14);   /* the same orange, dark enough for small text */
+  --font: Geist, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "Geist Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);   /* quick start, long soft landing */
+  --pad: 24px;
 }
-@media (prefers-color-scheme: light) {
-  :root {
-    color-scheme: light;
-    --bg: #f3f0e8;
-    --ink: #15161a;
-    --muted: #5c5f69;
-    --rule: #d8d4c9;
-    --day: #a35c07;
-    --term: #3d4fc4;
-    --line: #b3b1aa;
-    --line-on: #15161a;
-    --on-accent: #fbf9f4;
-    --halo-blend: multiply;
-    --halo-strength: 0.32;
-    --grain: 0.09;
-  }
-}
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
 
 *, *::before, *::after { box-sizing: border-box; }
 html, body { height: 100%; }
@@ -58,143 +46,176 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--ink);
-  font: 400 15px/1.55 var(--font-body);
+  font: 400 15px/1.5 var(--font);
   -webkit-font-smoothing: antialiased;
 }
-/* A little film grain, so the flat background does not look like plastic. */
+/* A little grain, so the flat background reads as paper and not as plastic. */
 body::before {
-  content: ""; position: fixed; inset: 0; z-index: 5; pointer-events: none; opacity: var(--grain);
+  content: ""; position: fixed; inset: 0; z-index: 5; pointer-events: none; opacity: 0.07;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .5 0 0 0 0 .5 0 0 0 0 .5 0 0 0 .9 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 p, h1, h2, h3, ol, ul, dl, dd { margin: 0; }
 ol, ul { padding: 0; list-style: none; }
-button { font: inherit; color: inherit; }
-:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
-::selection { background: var(--ink); color: var(--bg); }
+button { font: inherit; color: inherit; border-radius: 0; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+::selection { background: var(--accent); color: #0c0c0c; }
 
-.app { display: grid; grid-template-columns: minmax(0, 1fr) clamp(340px, 34vw, 480px); height: 100dvh; }
+/* The small label: monospace capitals. Used for everything that is not a name or a sentence. */
+.micro, .btn, .stats dt, .no, .amount, .idx, .time {
+  font: 500 11px/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted);
+}
+.btn {
+  color: var(--ink); background: none; border: 1px solid var(--rule); padding: 8px 12px; cursor: pointer;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+}
+.btn:hover { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+
+/* The key from the legend: an orange square for a Day, a round dot in the text colour for a Term. */
+.key { width: 7px; height: 7px; flex: none; display: inline-block; border-radius: 50%; background: currentColor; }
+.key.day { border-radius: 0; background: var(--accent); }
+
+.app {
+  display: grid; height: 100dvh;
+  grid-template: "top top" auto "scene panel" minmax(0, 1fr) "bar panel" auto / minmax(0, 1fr) clamp(360px, 32vw, 480px);
+}
+
+/* ---- Top bar ---- */
+.top {
+  grid-area: top; display: flex; align-items: center; gap: 16px; min-height: 48px;
+  padding: 8px var(--pad); border-bottom: 1px solid var(--rule);
+}
+h1 { font: 500 15px/1 var(--font); letter-spacing: -0.01em; }
+.top .span { margin-left: auto; }
 
 /* ---- The picture ---- */
-.scene { position: relative; min-width: 0; overflow: hidden; }
-#graph, .halos, .labels { position: absolute; inset: 0; }
-.halos, .labels { pointer-events: none; }
-/* Stacking, back to front: glows, picture, name tags (1), edge fades (2), title and legend (3). */
-.labels { z-index: 1; }
-.scene::before, .scene::after {   /* dots fade out under the title and the legend instead of colliding with them */
-  content: ""; position: absolute; left: 0; right: 0; z-index: 2; pointer-events: none;
-}
-.scene::before { top: 0; height: 152px; background: linear-gradient(to bottom, var(--bg) 20%, transparent); }
-.scene::after { bottom: 0; height: 120px; background: linear-gradient(to top, var(--bg) 20%, transparent); }
-.masthead, .stats, .foot, .reset, .fail { z-index: 3; }
+.scene { grid-area: scene; position: relative; min-width: 0; min-height: 0; overflow: hidden; }
+#graph, .labels { position: absolute; inset: 0; opacity: 0; transition: opacity 1.2s var(--ease); }
+.scene.ready #graph, .scene.ready .labels { opacity: 1; }
+#graph { cursor: grab; }   /* over a dot, the library switches to the pointing hand by itself */
+#graph:active { cursor: grabbing; }
+.labels { z-index: 1; pointer-events: none; }
+.cap { position: absolute; left: var(--pad); top: 24px; }
 
-.mono, .over, .stats dt, .foot, .reset, .eyebrow, .section, .time, .also {
-  font-family: var(--font-mono); font-weight: 500; font-size: 11px; line-height: 1;
-  letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted);
+/* Printed huge behind the picture: the selected name, or on the Index the number of dots.
+   While the picture loads, that number counts up. */
+.ghost {
+  position: absolute; left: var(--pad); bottom: 0; white-space: nowrap; overflow: hidden;
+  pointer-events: none; user-select: none;
+  font: 600 100px/1.14 var(--font); letter-spacing: -0.055em; word-spacing: 0.08em; font-variant-numeric: tabular-nums;
+  color: color-mix(in srgb, var(--ink) 9%, transparent);
 }
-.masthead { position: absolute; top: 32px; left: 32px; pointer-events: none; }
-h1 { margin-top: 12px; font: 400 32px/1 var(--font-display); letter-spacing: -0.01em; }
+.ghost span { display: inline-block; padding-right: 0.06em; animation: up 1s var(--ease) both; }
+@keyframes up { from { transform: translateY(105%); } }
 
-.stats { position: absolute; top: 32px; right: 32px; display: flex; gap: 32px; pointer-events: none; }
-.stats div { display: flex; flex-direction: column-reverse; gap: 12px; }
-.stats dd { font: 400 40px/0.8 var(--font-display); font-variant-numeric: tabular-nums; }
-
-.foot {
-  position: absolute; left: 32px; bottom: 32px; right: 180px; pointer-events: none;
-  display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; line-height: 1.4;
+/* Four corner marks, like the trim marks on a printed proof: around the picture, and around the selected dot. */
+.marks {
+  --t: 10px; --m: var(--ink); position: absolute; pointer-events: none;
+  background:
+    linear-gradient(var(--m) 0 0) left top / var(--t) 1px no-repeat, linear-gradient(var(--m) 0 0) left top / 1px var(--t) no-repeat,
+    linear-gradient(var(--m) 0 0) right top / var(--t) 1px no-repeat, linear-gradient(var(--m) 0 0) right top / 1px var(--t) no-repeat,
+    linear-gradient(var(--m) 0 0) left bottom / var(--t) 1px no-repeat, linear-gradient(var(--m) 0 0) left bottom / 1px var(--t) no-repeat,
+    linear-gradient(var(--m) 0 0) right bottom / var(--t) 1px no-repeat, linear-gradient(var(--m) 0 0) right bottom / 1px var(--t) no-repeat;
 }
-.legend { display: flex; gap: 16px; }
-.legend span { display: inline-flex; align-items: center; gap: 8px; color: var(--ink); }
-.key { width: 9px; height: 9px; flex: none; display: inline-block; border: 1.5px solid var(--c); background: color-mix(in srgb, var(--c) 30%, transparent); }
-.day { --c: var(--day); }
-.term { --c: var(--term); }
-.key.day { border-radius: 2px; }
-.key.term { border-radius: 50%; }
-
-.reset {
-  position: absolute; right: 32px; bottom: 24px; color: var(--ink); background: none; cursor: pointer;
-  border: 1px solid var(--rule); border-radius: 4px; padding: 12px;
-  transition: border-color 0.2s var(--ease);
-}
-.reset:hover { border-color: var(--muted); }
-
-/* A soft glow behind each dot. The 3D picture is see-through, so the glow shows around it. */
-.halo {
-  position: absolute; left: -60px; top: -60px; width: 120px; height: 120px; border-radius: 50%;
-  mix-blend-mode: var(--halo-blend);
-  background: radial-gradient(circle closest-side, color-mix(in srgb, var(--c) 70%, transparent),
-    color-mix(in srgb, var(--c) 22%, transparent) 38%, transparent 100%);
-}
-.halo.on::after {   /* a ring that keeps leaving the selected dot */
-  content: ""; position: absolute; inset: 30%; border-radius: 50%; border: 1px solid var(--c);
-  animation: ping 2.6s var(--ease) infinite;
-}
-@keyframes ping { from { transform: scale(0.6); opacity: 0.9; } to { transform: scale(1.9); opacity: 0; } }
+.plate { inset: 12px; --t: 12px; --m: var(--muted); }
+.lock { position: absolute; left: 0; top: 0; pointer-events: none; }
+.lock .marks { inset: 0; --m: var(--accent); animation: lock 0.7s var(--ease) both; }   /* closes in on the dot */
+@keyframes lock { from { transform: scale(2.4); opacity: 0; } }
 
 /* The name tag under each dot: a real button. */
 .label {
-  position: absolute; left: 0; top: 0; display: inline-flex; align-items: center; gap: 6px;
-  font: 500 12px/1 var(--font-body); color: var(--ink); white-space: nowrap;
-  background: color-mix(in srgb, var(--bg) 72%, transparent);   /* so a line behind the name stays readable */
-  border: 0; border-radius: 999px; padding: 5px 10px 5px 8px; cursor: pointer; pointer-events: auto;
-  transition: background-color 0.25s var(--ease), color 0.25s var(--ease);
+  position: absolute; left: 0; top: 0; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  font: 500 12px/1 var(--font); color: var(--ink); cursor: pointer; pointer-events: auto;
+  background: color-mix(in srgb, var(--bg) 82%, transparent);   /* so a line behind the name stays readable */
+  border: 1px solid var(--rule); padding: 4px 6px;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s, opacity 0.3s;
 }
 .label[hidden] { display: none; }
-.label span { max-width: 22ch; overflow: hidden; text-overflow: ellipsis; }
-.label:hover, .label.hot { background: color-mix(in srgb, var(--ink) 16%, var(--bg)); }
-.label.on { color: var(--on-accent); background: var(--c); font-weight: 600; }
-.label.on .key { border-color: currentColor; background: none; }
+.label .no { font-size: 10px; letter-spacing: 0.06em; }
+.label .name { max-width: 22ch; overflow: hidden; text-overflow: ellipsis; }
+.label:hover, .label:focus-visible, .label.hot { border-color: var(--ink); opacity: 1 !important; }   /* a faint tag at the back becomes readable */
+.label.on { background: var(--ink); color: var(--bg); }
+.label.on .no { color: inherit; opacity: 0.6; }
 
 /* Without the 3D picture, the name tags become a plain list. */
-.fail { position: absolute; left: 32px; right: 32px; top: 128px; max-width: 52ch; color: var(--muted); }
-.labels.plain { top: 208px; left: 32px; right: 32px; display: flex; flex-wrap: wrap; align-content: start; gap: 8px; }
-.labels.plain .label { position: static; opacity: 1; border: 1px solid var(--rule); }
+.cap.fail { right: var(--pad); max-width: 56ch; font: 400 15px/1.5 var(--font); letter-spacing: 0; text-transform: none; }
+.labels.plain { inset: 128px var(--pad) auto; display: flex; flex-wrap: wrap; align-content: start; gap: 8px; }
+.labels.plain .label { position: static; }
 
-/* ---- The panel ---- */
+/* ---- Bar under the picture: the counts, the legend, the controls ---- */
+.bar {
+  grid-area: bar; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 32px;
+  min-height: 64px; padding: 12px var(--pad); border-top: 1px solid var(--rule);
+}
+.stats { display: flex; gap: 24px; }
+.stats div { display: flex; align-items: baseline; gap: 8px; }
+.stats dd { font: 500 28px/1 var(--font); letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
+.legend { display: flex; gap: 16px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; color: var(--ink); }
+.hint { margin-left: auto; }
+
+/* ---- The panel: the Index, or the entry for one dot ---- */
 .panel {
-  container-type: inline-size; border-left: 1px solid var(--rule); padding: 48px 40px 64px;
-  overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--rule) transparent;
+  grid-area: panel; container-type: inline-size; border-left: 1px solid var(--rule);
+  padding: 16px 32px 48px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--rule) transparent;
 }
-.panel > *, .list li { animation: rise 0.7s var(--ease) both; animation-delay: calc(var(--i, 0) * 70ms); }
+.panel > *, .panel li { animation: rise 0.8s var(--ease) both; animation-delay: calc(var(--i, 0) * 50ms); }
 .panel > :nth-child(2) { --i: 1; }
-.panel > :nth-child(3) { --i: 2; }
-.panel > :nth-child(4) { --i: 3; }
-.panel > :nth-child(n + 5) { --i: 4; }
-@keyframes rise { from { opacity: 0; transform: translateY(12px); } }
+.panel > :nth-child(n + 3) { --i: 2; }
+@keyframes rise { from { opacity: 0; transform: translateY(16px); } }
 
-.eyebrow { display: flex; align-items: center; gap: 8px; color: var(--ink); }
-h2 { margin-top: 20px; font: 400 clamp(40px, 17cqi, 72px)/0.95 var(--font-display); letter-spacing: -0.02em; overflow-wrap: anywhere; }
-h2.long { font-size: clamp(30px, 10cqi, 44px); line-height: 1.05; }
-.lead { margin-top: 20px; max-width: 40ch; font-size: 17px; line-height: 1.5; }
-.sub { margin-top: 12px; color: var(--muted); font-size: 14px; }
-.section { display: flex; justify-content: space-between; margin-top: 48px; padding-bottom: 12px; border-bottom: 1px solid var(--rule); }
-.list li { display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 16px; padding: 20px 0; border-bottom: 1px solid var(--rule); }
-.time { letter-spacing: 0.04em; line-height: 24px; font-variant-numeric: tabular-nums; }
-.note { font-size: 17px; line-height: 24px; font-weight: 500; overflow-wrap: anywhere; }
-.about { display: grid; gap: 8px; justify-items: start; margin-top: 16px; }
+.meta { display: flex; justify-content: space-between; align-items: center; gap: 16px; min-height: 32px; }
+.meta span { display: inline-flex; align-items: center; gap: 6px; }
+.back { color: var(--ink); background: none; border: 0; padding: 8px 0; cursor: pointer; transition: color 0.2s; }
+.back:hover { color: var(--accent-ink); }
+/* The title is one line, sized by the script to fill the panel's width. A long name wraps instead. */
+h2 { margin-top: 32px; white-space: nowrap; font: 600 64px/0.95 var(--font); letter-spacing: -0.055em; word-spacing: 0.08em; }
+h2 span { display: inline-block; }
+h2.long { white-space: normal; font-size: 36px; line-height: 1.02; letter-spacing: -0.04em; overflow-wrap: anywhere; }
+h2:focus { outline: none; }
+.lead { margin-top: 24px; max-width: 34ch; font-size: 20px; line-height: 1.35; letter-spacing: -0.015em; }
+.sub { margin-top: 16px; color: var(--muted); }
+.section { display: flex; justify-content: space-between; margin-top: 48px; padding-bottom: 12px; border-bottom: 1px solid var(--ink); }
+
+.list li { display: grid; grid-template-columns: 24px 48px minmax(0, 1fr); gap: 12px; padding: 16px 0; border-bottom: 1px solid var(--rule); }
+.idx, .time { line-height: 24px; letter-spacing: 0.04em; font-variant-numeric: tabular-nums; }
+.time { color: var(--ink); }
+.note { font-size: 17px; line-height: 24px; font-weight: 500; letter-spacing: -0.01em; overflow-wrap: anywhere; }
+.about { display: grid; gap: 8px; justify-items: start; margin-top: 12px; }
 .explain { max-width: 44ch; font-size: 14px; color: var(--muted); }
-.also { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; letter-spacing: 0.08em; }
-.chip {
-  display: inline-flex; align-items: center; gap: 6px; font: 500 13px/1 var(--font-body);
-  letter-spacing: 0; text-transform: none; color: var(--ink); background: none; cursor: pointer;
-  border: 1px solid var(--rule); border-radius: 999px; padding: 6px 10px 6px 8px;
-  transition: border-color 0.2s var(--ease), background-color 0.2s var(--ease);
+.also { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; line-height: 1.4; }
+/* A name that jumps to its own entry. */
+.ref {
+  display: inline-flex; align-items: center; gap: 6px; font: 500 13px/1 var(--font); letter-spacing: 0;
+  text-transform: none; color: var(--ink); background: none; cursor: pointer;
+  border: 0; border-bottom: 1px solid var(--muted); padding: 4px 0;
+  transition: color 0.2s, border-color 0.2s;
 }
-.chip:hover { border-color: var(--c); background: color-mix(in srgb, var(--c) 12%, transparent); }
+.ref:hover { color: var(--accent-ink); border-color: currentColor; }
+.ref .no { font-size: 10px; letter-spacing: 0.06em; }
+
+.index li { border-bottom: 1px solid var(--rule); }
+.entry {
+  display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; align-items: center; gap: 12px; width: 100%;
+  padding: 12px 0; text-align: left; color: var(--ink); background: none; border: 0; cursor: pointer;
+  transition: padding 0.4s var(--ease), background-color 0.2s, color 0.2s;
+}
+.entry:hover, .entry:focus-visible { padding-left: 12px; padding-right: 12px; background: var(--ink); color: var(--bg); }
+.entry .name { display: flex; align-items: center; gap: 8px; min-width: 0; font: 500 17px/24px var(--font); letter-spacing: -0.01em; }
+.entry .name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.entry:hover .no, .entry:hover .amount, .entry:focus-visible .no, .entry:focus-visible .amount { color: inherit; opacity: 0.65; }
 
 /* ---- Phone: the picture on top, the panel below ---- */
 @media (max-width: 860px) {
+  :root { --pad: 16px; }
   .app { display: block; height: auto; }
-  .scene { height: 68svh; min-height: 380px; border-bottom: 1px solid var(--rule); }
-  .masthead { top: 20px; left: 20px; }
-  h1 { font-size: 26px; }
-  .stats { top: 84px; left: 20px; right: auto; gap: 20px; }   /* under the title: side by side does not fit */
-  .stats div { flex-direction: row; align-items: baseline; gap: 6px; }
-  .stats dd { font-size: 22px; line-height: 1; }
-  .stats dt { font-size: 10px; letter-spacing: 0.1em; }
-  .foot { left: 20px; bottom: 20px; right: 140px; }
-  .reset { right: 20px; bottom: 16px; }
-  .fail, .labels.plain { left: 20px; right: 20px; }
-  .panel { border-left: 0; padding: 32px 20px 64px; overflow: visible; }
+  .top .span { display: none; }
+  .top .btn { margin-left: auto; }
+  .btn { padding: 12px; }
+  .scene { height: 62svh; min-height: 360px; }
+  .bar { gap: 12px 24px; }
+  .hint { margin-left: 0; flex-basis: 100%; order: 1; line-height: 1.4; }
+  .bar .btn { margin-left: auto; }
+  .panel { border-left: 0; border-top: 1px solid var(--rule); padding: 8px 16px 48px; overflow: visible; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
@@ -203,32 +224,34 @@ h2.long { font-size: clamp(30px, 10cqi, 44px); line-height: 1.05; }
 </head>
 <body>
 <div class="app">
-  <section class="scene" aria-label="The picture">
-    <div class="halos" id="halos" aria-hidden="true"></div>
-    <div id="graph" aria-hidden="true"></div>
-    <p class="fail" id="fail" hidden></p>
-    <div class="labels" id="labels" role="group" aria-label="Dots of the Graph View"></div>
+  <header class="top">
+    <p class="micro">Meetup Intelligence</p>
+    <h1>Graph View</h1>
+    <p class="micro span" id="span"></p>
+    <button class="btn" id="theme" type="button">Light</button>
+  </header>
 
-    <header class="masthead">
-      <p class="over">Meetup Intelligence</p>
-      <h1>Graph View</h1>
-    </header>
-    <dl class="stats" id="stats"></dl>
-    <div class="foot">
-      <p class="legend"><span><i class="key day"></i>Day</span><span><i class="key term"></i>Term</span></p>
-      <p id="hint">Drag to turn · Scroll to zoom · Click a dot</p>
-    </div>
-    <button class="reset" id="reset" type="button" hidden>Reset view</button>
+  <section class="scene" aria-label="The picture">
+    <p class="ghost" id="ghost" aria-hidden="true"></p>
+    <div id="graph" aria-hidden="true"></div>
+    <i class="marks plate" aria-hidden="true"></i>
+    <div class="lock" id="lock" aria-hidden="true" hidden></div>
+    <p class="micro cap" id="cap" role="status">Loading the picture</p>
+    <div class="labels" id="labels" role="group" aria-label="Dots of the Graph View"></div>
   </section>
-  <aside class="panel" id="panel" aria-live="polite" aria-label="The dot you clicked"></aside>
+
+  <footer class="bar">
+    <dl class="stats" id="stats"></dl>
+    <p class="legend micro"><span><i class="key day"></i>Day</span><span><i class="key term"></i>Term</span></p>
+    <p class="micro hint" id="hint">Drag to turn · Scroll to zoom · Click a dot</p>
+    <button class="btn" id="reset" type="button" hidden>Reset view</button>
+  </footer>
+
+  <aside class="panel" id="panel" aria-live="polite" aria-label="The Index, or the dot you clicked"></aside>
 </div>
 
 <!-- meetup.py puts the Notes and Terms here. The page reads nothing else. -->
 <script type="application/json" id="data">__DATA__</script>
-<!-- 3d-force-graph draws the 3D picture. The checksum makes the browser refuse any other file. -->
-<script src="https://cdn.jsdelivr.net/npm/3d-force-graph@1.80.2/dist/3d-force-graph.min.js"
-        integrity="sha256-rptcqdUlCVl40PXSP5E23+F3sulJdzEC/78UXdd3bwQ="
-        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script>
 (function () {
   var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -236,7 +259,15 @@ h2.long { font-size: clamp(30px, 10cqi, 44px); line-height: 1.05; }
   var notes = data.notes;   // [{day, time, text, terms: [names]}], in the order they were saved
   var TERMS = data.terms;   // {name: description or null}
 
-  var panel = document.getElementById('panel');
+  var root = document.documentElement;
+  var scene = document.querySelector('.scene'), panel = document.getElementById('panel');
+  var ghost = document.getElementById('ghost'), lock = document.getElementById('lock');
+  var cap = document.getElementById('cap'), labels = document.getElementById('labels');
+  var still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var Graph = null, ctl = null;
+  var sel = '';        // the key of the selected dot. Empty: the panel shows the Index
+  var ready = false;   // the picture is there, or it has failed for good
+  var t0 = performance.now();
 
   function esc(s) {
     return String(s).replace(/[&<>"]/g, function (c) {
@@ -245,21 +276,29 @@ h2.long { font-size: clamp(30px, 10cqi, 44px); line-height: 1.05; }
   }
   function uniq(a) { return a.filter(function (v, i) { return a.indexOf(v) === i; }); }
   function plural(n, word) { return n + ' ' + word + (n === 1 ? '' : 's'); }
+  function two(n) { return n < 10 ? '0' + n : String(n); }
 
   var days = uniq(notes.map(function (n) { return n.day; })).sort();
-  var terms = Object.keys(TERMS);
+  // Terms in the order they first came up, so a Term keeps its number when newer ones arrive.
+  var terms = uniq([].concat.apply([], notes.map(function (n) { return n.terms; })).concat(Object.keys(TERMS)));
   var links = [];   // one per "this Term came up on this Day"
+  var next = {};    // next[key][other key] is true when a line joins the two dots
   days.forEach(function (d) {
     var names = [];
     notes.forEach(function (n) { if (n.day === d) names = names.concat(n.terms); });
-    uniq(names).forEach(function (t) { links.push({ source: 'day:' + d, target: 'term:' + t }); });
+    uniq(names).forEach(function (t) {
+      var a = 'day:' + d, b = 'term:' + t;
+      links.push({ source: a, target: b });
+      (next[a] = next[a] || {})[b] = true;
+      (next[b] = next[b] || {})[a] = true;
+    });
   });
 
-  // The year is only shown once the Notes span more than one year.
+  // The year is only shown in names once the Notes span more than one year.
   var manyYears = uniq(days.map(function (d) { return d.slice(0, 4); })).length > 1;
-  function fmt(d) {
+  function fmt(d, year) {
     var p = d.split('-');
-    return Number(p[2]) + ' ' + MONTHS[Number(p[1]) - 1] + (manyYears ? ' ' + p[0] : '');
+    return Number(p[2]) + ' ' + MONTHS[Number(p[1]) - 1] + (year || manyYears ? ' ' + p[0] : '');
   }
   function longDate(d) {   // "Thursday 3 December 2026"
     var p = d.split('-');
@@ -272,97 +311,255 @@ h2.long { font-size: clamp(30px, 10cqi, 44px); line-height: 1.05; }
   }
   function describe(term) { return TERMS[term] ? esc(TERMS[term]) : 'No description yet.'; }
 
-  // ---- What the panel shows ----
-  function chip(kind, id, text) {   // a button that jumps to another dot
-    return '<button type="button" class="chip ' + kind + '" data-key="' + kind + ':' + esc(id) + '">' +
-      '<i class="key ' + kind + '"></i>' + esc(text) + '</button>';
+  // ---- The dots. Each has a catalogue number: D01, D02 … for Days, T01, T02 … for Terms. ----
+  var nodes = days.map(function (d, i) {
+    var count = notes.filter(function (n) { return n.day === d; }).length;
+    return { key: 'day:' + d, kind: 'day', name: d, label: fmt(d), no: 'D' + two(i + 1), amount: plural(count, 'Note') };
+  }).concat(terms.map(function (t, i) {
+    return { key: 'term:' + t, kind: 'term', name: t, label: t, no: 'T' + two(i + 1), amount: plural(daysOf(t).length, 'Day') };
+  }));
+  var byKey = {};
+  nodes.forEach(function (n, i) { n.pos = i + 1; byKey[n.key] = n; });
+  function close(n) { return n.key === sel || (next[sel] && next[sel][n.key]); }   // selected, or joined to it
+
+  var span = !days.length ? '' : fmt(days[0], true) + (days.length > 1 ? ' — ' + fmt(days[days.length - 1], true) : '');
+  document.getElementById('span').textContent = span;
+  document.getElementById('stats').innerHTML = [['Days', days.length], ['Terms', terms.length], ['Lines', links.length]]
+    .map(function (s) { return '<div><dd>' + two(s[1]) + '</dd><dt>' + s[0] + '</dt></div>'; }).join('');
+
+  // ---- Text that sizes itself: the largest size at which it is one line no wider than `width`. ----
+  function fitText(el, width, max) {
+    el.style.fontSize = '100px';
+    var size = Math.min(100 * width / (el.firstChild.offsetWidth || 1), max);
+    el.style.fontSize = size.toFixed(1) + 'px';
+    return size;
   }
-  function head(kind, title, lead, sub) {
-    return '<p class="eyebrow"><i class="key ' + kind + '"></i>' + (kind === 'day' ? 'Day' : 'Term') + '</p>' +
-      '<h2' + (title.length > 14 ? ' class="long"' : '') + '>' + esc(title) + '</h2>' +
-      (lead ? '<p class="lead">' + lead + '</p>' : '') + '<p class="sub">' + sub + '</p>';
+  function fitGhost() {
+    return ghost.firstChild ? fitText(ghost, scene.clientWidth - 2 * ghost.offsetLeft, Math.min(scene.clientHeight * 0.5, 440)) : 0;
   }
-  function section(name, amount) { return '<h3 class="section"><span>' + name + '</span><span>' + amount + '</span></h3>'; }
-  function row(i, n, below) {
-    return '<li style="--i:' + (i + 2) + '"><span class="time">' + esc(n.time) + '</span><div><p class="note">' +
-      esc(n.text) + '</p>' + below + '</div></li>';
+  function fitTitle() {
+    var h = panel.querySelector('h2');
+    if (!h) return;
+    h.classList.remove('long');
+    if (fitText(h, h.clientWidth, 104) < 36) {   // too long for one line: a fixed size, and it may wrap
+      h.style.fontSize = '';
+      h.classList.add('long');
+    }
+  }
+  function word(text, short) {   // print a new word behind the picture
+    var s = document.createElement('span');
+    s.textContent = text;
+    ghost.replaceChildren(s);
+    if (fitGhost() < scene.clientHeight * 0.14 && short) {   // a name too long to be printed big: its number instead
+      s.textContent = short;
+      fitGhost();
+    }
   }
 
-  function panelDay(d) {
-    var list = notes.filter(function (n) { return n.day === d; });
-    return head('day', fmt(d), '', esc(longDate(d))) + section('Timeline', plural(list.length, 'Note')) +
-      '<ol class="list">' + list.map(function (n, i) {
-        return row(i, n, n.terms.map(function (t) {
-          var others = daysOf(t).filter(function (x) { return x !== d; });
-          return '<div class="about">' + chip('term', t, t) + '<p class="explain">' + describe(t) + '</p><p class="also">' +
-            (others.length ? 'Also on ' + others.map(function (o) { return chip('day', o, fmt(o)); }).join('')
+  // ---- What the panel shows ----
+  function ref(key) {   // a name that jumps to its own entry
+    var n = byKey[key];
+    return '<button type="button" class="ref" data-key="' + esc(key) + '"><i class="key ' + n.kind + '"></i>' +
+      '<span class="no">' + n.no + '</span>' + esc(n.label) + '</button>';
+  }
+  function head(n, lead, sub) {
+    return '<p class="meta micro"><button type="button" class="back micro" data-key="">← Index</button>' +
+      '<span><i class="key ' + n.kind + '"></i>' + (n.kind === 'day' ? 'Day ' : 'Term ') + n.no +
+      ' · ' + two(n.pos) + ' / ' + two(nodes.length) + '</span></p>' +
+      '<h2><span>' + esc(n.label) + '</span></h2>' +
+      (lead ? '<p class="lead">' + lead + '</p>' : '') + '<p class="sub">' + sub + '</p>';
+  }
+  function section(name, amount) { return '<h3 class="section micro"><span>' + name + '</span><span>' + amount + '</span></h3>'; }
+  function row(i, n, below) {
+    return '<li style="--i:' + Math.min(i + 3, 12) + '"><span class="idx">' + two(i + 1) + '</span>' +
+      '<span class="time">' + esc(n.time) + '</span><div><p class="note">' + esc(n.text) + '</p>' + below + '</div></li>';
+  }
+
+  function panelDay(n) {
+    var list = notes.filter(function (m) { return m.day === n.name; });
+    return head(n, '', esc(longDate(n.name))) + section('Timeline', plural(list.length, 'Note')) +
+      '<ol class="list">' + list.map(function (m, i) {
+        return row(i, m, m.terms.map(function (t) {
+          var others = daysOf(t).filter(function (d) { return d !== n.name; });
+          return '<div class="about">' + ref('term:' + t) + '<p class="explain">' + describe(t) + '</p><p class="also micro">' +
+            (others.length ? 'Also on ' + others.map(function (d) { return ref('day:' + d); }).join('')
               : 'Only on this Day so far') + '</p></div>';
         }).join(''));
       }).join('') + '</ol>';
   }
 
-  function panelTerm(t) {
-    var list = notes.filter(function (n) { return n.terms.indexOf(t) > -1; });
-    return head('term', t, describe(t), 'Came up on ' + plural(daysOf(t).length, 'Day') + '.') +
-      section('Mentions', plural(list.length, 'Note')) +
-      '<ul class="list">' + list.map(function (n, i) {
-        return row(i, n, '<div class="about">' + chip('day', n.day, fmt(n.day)) + '</div>');
+  function panelTerm(n) {
+    var list = notes.filter(function (m) { return m.terms.indexOf(n.name) > -1; });
+    return head(n, describe(n.name), 'Came up on ' + plural(daysOf(n.name).length, 'Day') + '.') +
+      section('Heard in', plural(list.length, 'Note')) +
+      '<ul class="list">' + list.map(function (m, i) {
+        return row(i, m, '<div class="about">' + ref('day:' + m.day) + '</div>');
       }).join('') + '</ul>';
   }
 
-  function two(n) { return n < 10 ? '0' + n : String(n); }
-  document.getElementById('stats').innerHTML = [['Days', days.length], ['Terms', terms.length], ['Lines', links.length]]
-    .map(function (s) { return '<div><dt>' + s[0] + '</dt><dd>' + two(s[1]) + '</dd></div>'; }).join('');
-
-  if (!notes.length) {
-    panel.innerHTML = '<p class="eyebrow">Empty</p><h2>No Notes yet</h2>' +
-      '<p class="lead">Send one to the bot, then reload this page.</p>';
-    return;
+  function panelIndex() {   // every Day and Term, as a list
+    function group(name, kind) {
+      var list = nodes.filter(function (n) { return n.kind === kind; });
+      return section(name, two(list.length)) + '<ul class="index">' + list.map(function (n, i) {
+        return '<li style="--i:' + Math.min(i + 3, 12) + '"><button type="button" class="entry" data-key="' + esc(n.key) + '">' +
+          '<span class="no">' + n.no + '</span><span class="name"><i class="key ' + kind + '"></i><span>' + esc(n.label) + '</span></span>' +
+          '<span class="amount">' + n.amount + '</span></button></li>';
+      }).join('') + '</ul>';
+    }
+    return '<p class="meta micro"><span>Every Day and Term</span><span>' + two(nodes.length) + '</span></p>' +
+      '<h2><span>Index</span></h2>' +
+      '<p class="sub">' + (notes.length ? 'What I noted, ' + esc(span) + '.' : 'No Notes yet. Send one to the bot, then reload this page.') + '</p>' +
+      (notes.length ? group('Days', 'day') + group('Terms', 'term') : '');
   }
-  if (window.matchMedia('(pointer: coarse)').matches) {
-    document.getElementById('hint').textContent = 'Drag to turn · Pinch to zoom · Tap a dot';
-  }
 
-  // ---- The dots ----
-  var nodes = days.map(function (d) { return { key: 'day:' + d, kind: 'day', label: fmt(d) }; })
-    .concat(terms.map(function (t) { return { key: 'term:' + t, kind: 'term', label: t }; }));
-  var sel = 'day:' + days[days.length - 1];   // start on the latest Day
-
-  // Every dot gets a glow behind the picture and a name tag in front of it. The tag is an
-  // ordinary button: it carries the square or round key from the legend, and it makes each
-  // dot reachable by keyboard.
-  var labels = document.getElementById('labels'), halos = document.getElementById('halos');
+  // Every dot gets a name tag in front of the picture. The tag is an ordinary button: it
+  // carries the square or round key from the legend, and it makes each dot reachable by keyboard.
   nodes.forEach(function (n) {
-    var tag = document.createElement('button'), key = document.createElement('i'), name = document.createElement('span');
+    var tag = document.createElement('button');
     tag.type = 'button';
-    tag.className = 'label ' + n.kind;
+    tag.className = 'label';
     tag.hidden = true;
     tag.setAttribute('data-key', n.key);
     tag.setAttribute('aria-label', n.label + ', ' + (n.kind === 'day' ? 'Day' : 'Term'));
-    key.className = 'key ' + n.kind;
-    name.textContent = n.label;
-    tag.append(key, name);
-    labels.appendChild(tag);
-    n.tag = tag;
-    n.halo = halos.appendChild(document.createElement('div'));
-    n.halo.className = 'halo ' + n.kind;
-    n.halo.hidden = true;
+    tag.innerHTML = '<i class="key ' + n.kind + '"></i><span class="no">' + n.no + '</span><span class="name">' + esc(n.label) + '</span>';
+    n.tag = labels.appendChild(tag);
   });
+  var hotKey = null;   // the dot the pointer is on, in the picture or in the panel
+  function hot(key) {
+    hotKey = key;
+    nodes.forEach(function (n) { n.tag.classList.toggle('hot', n.key === key); });
+  }
 
   var REL = 7;   // dot size: radius = REL * cube root of size(n)
   function size(n) { return (n.kind === 'day' ? 2 : 1) * (n.key === sel ? 1.9 : 1); }
   function touches(l) { return (l.source.key || l.source) === sel || (l.target.key || l.target) === sel; }
 
-  var scene = document.querySelector('.scene');
-  var still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  var Graph = null, ctl = null, glow = 0.5;
-  try {
-    if (!window.ForceGraph3D) {
-      throw new Error('The picture needs a drawing library from the internet, and it did not load. ' +
-        'Check the connection, then reload this page. The dots are listed below.');
+  // The picture takes its colours from the page's own light and dark themes.
+  var probe = document.body.appendChild(document.createElement('i'));
+  probe.hidden = true;
+  function token(name) {   // what a colour of the page is right now, as "rgb(…)"
+    probe.style.color = 'var(--' + name + ')';
+    return getComputedStyle(probe).color;
+  }
+  function paint() {
+    if (!Graph) return;
+    var c = {};
+    ['accent', 'accent-dim', 'ink', 'dim', 'muted', 'rule'].forEach(function (k) { c[k] = token(k); });
+    Graph.nodeColor(function (n) {   // with a dot selected, the dots not joined to it step back
+        var on = !sel || close(n);
+        return n.kind === 'day' ? (on ? c.accent : c['accent-dim']) : (on ? c.ink : c.dim);
+      })
+      .nodeVal(size)
+      .linkColor(function (l) { return touches(l) ? c.ink : (sel ? c.rule : c.muted); })
+      .linkWidth(function (l) { return touches(l) ? 0.6 : 0; })   // 0 is a hairline
+      .linkDirectionalParticles(function (l) { return touches(l) && !still ? 2 : 0; })   // light running along the selected lines
+      .linkDirectionalParticleColor(function () { return c.accent; });
+  }
+
+  function render() {
+    var n = byKey[sel];
+    nodes.forEach(function (m) {
+      m.tag.classList.toggle('on', m === n);
+      m.tag.setAttribute('aria-pressed', m === n);
+    });
+    panel.innerHTML = !n ? panelIndex() : n.kind === 'day' ? panelDay(n) : panelTerm(n);
+    panel.scrollTop = 0;
+    fitTitle();
+    if (ready) word(n ? n.label : two(nodes.length), n && n.no);   // on the Index: how many dots there are
+    lock.innerHTML = '<i class="marks"></i>';   // a new element, so the marks close in again
+    paint();
+  }
+
+  // Bring every dot into view, with room for the name tags.
+  function fit(ms) { Graph.zoomToFit(still ? 0 : ms, Math.round(Math.min(120, scene.clientHeight * 0.2))); }
+
+  // Select a dot, and glide the camera over so it sits in the middle. Zoom and angle stay.
+  // An empty key goes back to the Index and shows every dot again.
+  function pick(key) {
+    sel = byKey[key] ? key : '';
+    render();
+    if (!Graph) return;
+    ctl.autoRotate = false;
+    var n = byKey[sel];
+    if (!n) { fit(900); return; }
+    if (n.x === undefined) return;
+    var eye = Graph.camera().position, at = ctl.target;
+    Graph.cameraPosition({ x: eye.x + n.x - at.x, y: eye.y + n.y - at.y, z: eye.z + n.z - at.z },
+      { x: n.x, y: n.y, z: n.z }, still ? 0 : 900);
+  }
+
+  document.addEventListener('click', function (e) {
+    var target = e.target.closest ? e.target.closest('[data-key]') : null;
+    if (!target) return;
+    var inPanel = panel.contains(target);
+    pick(target.getAttribute('data-key'));
+    if (inPanel) {   // the button that was clicked is gone: carry on from the new title
+      var h = panel.querySelector('h2');
+      h.tabIndex = -1;
+      h.focus({ preventScroll: true });
+      if (panel.getBoundingClientRect().top < 0) panel.scrollIntoView();   // phone: back to the top of the entry
     }
+  });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && sel) pick(''); });
+  // Pointing at a name in the panel marks its dot in the picture.
+  panel.addEventListener('mouseover', function (e) {
+    var b = e.target.closest('[data-key]');
+    hot(b && b.getAttribute('data-key'));
+  });
+  panel.addEventListener('mouseleave', function () { hot(null); });
+
+  // ---- Light and dark: the PC's setting, unless the button was used ----
+  var themeButton = document.getElementById('theme'), darkQuery = window.matchMedia('(prefers-color-scheme: dark)');
+  function dark() { return root.dataset.theme ? root.dataset.theme === 'dark' : darkQuery.matches; }
+  function theme() {
+    themeButton.textContent = dark() ? 'Light' : 'Dark';
+    themeButton.setAttribute('aria-label', 'Switch to the ' + (dark() ? 'light' : 'dark') + ' theme');
+    paint();
+  }
+  themeButton.addEventListener('click', function () {
+    root.dataset.theme = dark() ? 'light' : 'dark';
+    try { localStorage['meetup-graph-theme'] = root.dataset.theme; } catch (e) {}   // remembered for the next reload
+    theme();
+  });
+  darkQuery.addEventListener('change', theme);
+  theme();
+
+  if (window.matchMedia('(pointer: coarse)').matches) {
+    document.getElementById('hint').textContent = 'Drag to turn · Pinch to zoom · Tap a dot';
+  }
+  new ResizeObserver(function () { resize(); fitGhost(); fitTitle(); }).observe(scene);
+  if (document.fonts) document.fonts.ready.then(function () {   // the real font is wider or narrower
+    fitGhost();
+    fitTitle();
+    nodes.forEach(function (n) { n.w = 0; });   // measure the name tags again
+  });
+
+  render();
+  if (!notes.length) {
+    ready = true;
+    cap.hidden = true;
+    word(two(0));
+    return;
+  }
+
+  // ---- While the picture loads: the big number behind it counts the dots ----
+  word(two(0));
+  (function count() {
+    if (ready) return;
+    var k = still ? 1 : Math.min(1, (performance.now() - t0) / 600);
+    ghost.firstChild.textContent = two(Math.round(k * nodes.length));
+    if (k < 1) requestAnimationFrame(count);
+  })();
+
+  function resize() {
+    if (!Graph) return;
+    var w = scene.clientWidth, h = scene.clientHeight;
+    if (w && h && (w !== Graph.width() || h !== Graph.height())) Graph.width(w).height(h);
+  }
+
+  function build() {
     Graph = new ForceGraph3D(document.getElementById('graph'), { controlType: 'orbit' })
-      .backgroundColor('rgba(0,0,0,0)')   // see-through: the page's own background and the glows show
+      .backgroundColor('rgba(0,0,0,0)')   // see-through: the page's own background and the big word show
       .nodeId('key')
       .nodeLabel(null)
       .nodeRelSize(REL)
@@ -376,7 +573,8 @@ h2.long { font-size: clamp(30px, 10cqi, 44px); line-height: 1.05; }
       .cooldownTicks(still ? 0 : Infinity)
       .cooldownTime(3000)
       .onNodeClick(function (n) { pick(n.key); })
-      .onNodeHover(function (n) { nodes.forEach(function (m) { m.tag.classList.toggle('hot', m === n); }); })
+      .onNodeHover(function (n) { hot(n && n.key); })
+      .onBackgroundClick(function () { if (sel) pick(''); })
       .graphData({ nodes: nodes, links: links });
     Graph.d3Force('link').distance(60);     // room for the name tags between dots
     Graph.d3Force('charge').strength(-110);
@@ -388,114 +586,100 @@ h2.long { font-size: clamp(30px, 10cqi, 44px); line-height: 1.05; }
     ctl.addEventListener('start', function () { ctl.autoRotate = false; });
     var sun = Graph.lights()[1];   // the library's one directed light, straight above by default
     if (sun) sun.position.set(-0.6, 1, 0.8);   // from the upper left instead, for rounder-looking dots
-  } catch (error) {
-    Graph = null;
-    document.getElementById('fail').textContent = error.message || String(error);
-    document.getElementById('fail').hidden = false;
+    resize();
+
+    var fitted = false;
+    function firstFit() {   // once, when the layout first exists
+      if (fitted) return;
+      fitted = true;
+      // One frame later: the library moves the dots to their places only after this callback.
+      requestAnimationFrame(function () { fit(1600); });
+    }
+    Graph.onEngineTick(firstFit).onEngineStop(firstFit);
+    var reset = document.getElementById('reset');
+    reset.hidden = false;
+    reset.addEventListener('click', function () { fit(900); });
   }
 
-  // Colours come from the page's own light and dark themes.
-  function paint() {
-    if (!Graph) return;
-    var css = getComputedStyle(document.documentElement), c = {};
-    ['day', 'term', 'line', 'line-on'].forEach(function (k) { c[k] = css.getPropertyValue('--' + k).trim(); });
-    glow = parseFloat(css.getPropertyValue('--halo-strength')) || 0.5;
-    Graph.nodeColor(function (n) { return c[n.kind]; })
-      .nodeVal(size)
-      .linkColor(function (l) { return touches(l) ? c['line-on'] : c.line; })
-      .linkWidth(function (l) { return touches(l) ? 0.7 : 0; })   // 0 is a hairline
-      .linkDirectionalParticles(function (l) { return touches(l) && !still ? 2 : 0; })   // light running along the selected lines
-      .linkDirectionalParticleColor(function () { return c['line-on']; });
-  }
-
-  function render() {
-    var i = sel.indexOf(':'), kind = sel.slice(0, i), id = sel.slice(i + 1);
-    nodes.forEach(function (n) {
-      n.tag.classList.toggle('on', n.key === sel);
-      n.tag.setAttribute('aria-pressed', n.key === sel);
-      n.halo.classList.toggle('on', n.key === sel);
-    });
-    panel.innerHTML = kind === 'day' ? panelDay(id) : panelTerm(id);
-    panel.scrollTop = 0;
-    paint();
-  }
-
-  // Select a dot, and glide the camera over so it sits in the middle. Zoom and angle stay.
-  function pick(key) {
-    sel = key;
-    render();
-    var n = nodes.filter(function (m) { return m.key === key; })[0];
-    if (!Graph || !n || n.x === undefined) return;
-    ctl.autoRotate = false;
-    var eye = Graph.camera().position, at = ctl.target;
-    Graph.cameraPosition({ x: eye.x + n.x - at.x, y: eye.y + n.y - at.y, z: eye.z + n.z - at.z },
-      { x: n.x, y: n.y, z: n.z }, still ? 0 : 900);
-  }
-
-  document.addEventListener('click', function (e) {
-    var target = e.target.closest ? e.target.closest('[data-key]') : null;
-    if (target) pick(target.getAttribute('data-key'));
-  });
-
-  render();
-  if (!Graph) {   // no picture: the name tags become a plain list, so the panel still works
-    nodes.forEach(function (n) { n.tag.hidden = false; });
-    labels.classList.add('plain');
-    return;
-  }
-
-  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', paint);
-
-  function resize() {
-    var w = scene.clientWidth, h = scene.clientHeight;
-    if (w && h && (w !== Graph.width() || h !== Graph.height())) Graph.width(w).height(h);
-  }
-  resize();
-  new ResizeObserver(resize).observe(scene);
-
-  // Bring every dot into view, clear of the title on top and the legend below.
-  function fit(ms) { Graph.zoomToFit(still ? 0 : ms, Math.round(Math.min(160, scene.clientHeight * 0.26))); }
-  var fitted = false;
-  function firstFit() {   // once, when the layout first exists
-    if (fitted) return;
-    fitted = true;
-    // One frame later: the library moves the dots to their places only after this callback.
-    requestAnimationFrame(function () { fit(1600); });
-  }
-  Graph.onEngineTick(firstFit).onEngineStop(firstFit);
-  var reset = document.getElementById('reset');
-  reset.hidden = false;
-  reset.addEventListener('click', function () { fit(900); });
-
-  // Keep each glow behind its dot and each name tag just under it while the picture turns.
-  // ponytail: every glow and tag is moved on every frame, which is fine up to a few hundred
-  // dots. Beyond that, show them only for the selected dot and its neighbours.
+  // Keep each name tag just under its dot, and the corner marks around the selected dot,
+  // while the picture turns. Where two tags would cover each other, only the more important
+  // one is shown: the selected dot first, then the dots joined to it, then Days, then whatever is nearest.
+  // ponytail: every tag is moved and compared with the others on every frame, which is fine
+  // up to a few hundred dots. Beyond that, show tags only for the selected dot and its neighbours.
+  var order = nodes.slice();
   function place() {
+    if (!Graph) return;
     requestAnimationFrame(place);
     var cam = Graph.camera(), eye = cam.position, at = ctl.target;
     var fx = at.x - eye.x, fy = at.y - eye.y, fz = at.z - eye.z, flen = Math.hypot(fx, fy, fz) || 1;
     var zoom = Graph.height() / 2 / Math.tan(cam.fov * Math.PI / 360);   // pixels per unit at depth 1
-    var near = Infinity, far = 0;
+    var near = Infinity, far = 0, picked = byKey[sel];
     nodes.forEach(function (n) {   // depth: how far in front of the camera the dot is
       n.depth = n.x === undefined ? -1 : ((n.x - eye.x) * fx + (n.y - eye.y) * fy + (n.z - eye.z) * fz) / flen;
       if (n.depth > 0) { near = Math.min(near, n.depth); far = Math.max(far, n.depth); }
+      n.rank = (n === picked ? 0 : n.key === hotKey ? 1 : picked && close(n) ? 2 : n.kind === 'day' ? 3 : 4) * 1e6 + n.depth;
     });
-    nodes.forEach(function (n) {
-      n.tag.hidden = n.halo.hidden = n.depth <= 0;
+    order.sort(function (a, b) { return a.rank - b.rank; });
+    lock.hidden = !picked || picked.depth <= 0;
+    var placed = [];   // the tags shown so far in this frame
+    order.forEach(function (n) {
+      n.tag.hidden = n.depth <= 0;
       if (n.tag.hidden) return;
-      var on = n.key === sel;
+      var on = n === picked;
       var p = Graph.graph2ScreenCoords(n.x, n.y, n.z);
       var radius = REL * Math.cbrt(size(n)) * zoom / n.depth;   // the dot's radius on screen
-      var fade = 1 - 0.55 * (n.depth - near) / (far - near || 1);   // farther is fainter
-      n.halo.style.transform = 'translate(' + p.x.toFixed(1) + 'px, ' + p.y.toFixed(1) + 'px) scale(' + (radius * 6.4 / 120).toFixed(3) + ')';
-      n.halo.style.opacity = Math.min(1, glow * (on ? 1.6 : 1) * fade).toFixed(2);
-      n.tag.style.transform = 'translate(calc(' + p.x.toFixed(1) + 'px - 50%), ' + (p.y + radius + 6).toFixed(1) + 'px)';
-      n.tag.style.opacity = on ? 1 : (0.25 + 0.75 * fade).toFixed(2);   // names stay readable at the back
+      var fade = (1 - 0.5 * (n.depth - near) / (far - near || 1)) * (picked && !close(n) ? 0.4 : 1);   // farther, or not joined: fainter
+      if (!n.w) { n.w = n.tag.offsetWidth; n.h = n.tag.offsetHeight; }   // measured once
+      var x = p.x - n.w / 2, y = p.y + radius + (on ? 20 : 6);
+      var free = placed.every(function (b) { return x > b.x + b.w + 2 || x + n.w + 2 < b.x || y > b.y + b.h + 2 || y + n.h + 2 < b.y; });
+      if (free) placed.push({ x: x, y: y, w: n.w, h: n.h });
+      n.tag.style.transform = 'translate(' + x.toFixed(1) + 'px, ' + y.toFixed(1) + 'px)';
+      n.tag.style.opacity = !free ? 0 : on ? 1 : (0.3 + 0.7 * fade).toFixed(2);   // names stay readable at the back
+      n.tag.style.pointerEvents = free ? '' : 'none';
       n.tag.style.zIndex = on ? 100000 : Math.max(1, Math.round(50000 - n.depth));
+      if (on) {
+        var s = Math.round(radius * 2 + 24);
+        lock.style.width = lock.style.height = s + 'px';
+        lock.style.transform = 'translate(' + (p.x - s / 2).toFixed(1) + 'px, ' + (p.y - s / 2).toFixed(1) + 'px)';
+      }
     });
   }
-  place();
+
+  function done(problem) {   // the picture is there, or it is not coming
+    ready = true;
+    cap.hidden = !problem;
+    if (problem) {   // no picture: the name tags become a plain list, so the page still works
+      Graph = null;
+      document.getElementById('graph').hidden = true;
+      cap.textContent = problem;
+      cap.className = 'cap fail';
+      document.getElementById('hint').hidden = true;   // nothing to drag or zoom
+      nodes.forEach(function (n) { n.tag.hidden = false; });
+      labels.classList.add('plain');
+    }
+    scene.classList.add('ready');
+    render();
+    place();
+  }
+
+  // The library's own script tag, below, calls one of these two.
+  window.startGraph = function () {
+    setTimeout(function () {   // let the count reach its end first
+      try { build(); } catch (error) { done('The picture could not be drawn here (' + (error.message || error) + '). Every Day and Term is still listed.'); return; }
+      done();
+    }, still ? 0 : Math.max(0, 700 - (performance.now() - t0)));
+  };
+  window.failGraph = function () {
+    done('The picture needs a drawing library from the internet, and it did not load. ' +
+      'Check the connection, then reload this page. Every Day and Term is still listed.');
+  };
 })();
 </script>
+<!-- 3d-force-graph draws the 3D picture. The checksum makes the browser refuse any other file.
+     It loads after the page is up, so the Index can be read while it arrives. -->
+<script async src="https://cdn.jsdelivr.net/npm/3d-force-graph@1.80.2/dist/3d-force-graph.min.js"
+        integrity="sha256-rptcqdUlCVl40PXSP5E23+F3sulJdzEC/78UXdd3bwQ="
+        crossorigin="anonymous" referrerpolicy="no-referrer"
+        onload="window.startGraph && window.startGraph()" onerror="window.failGraph && window.failGraph()"></script>
 </body>
 </html>

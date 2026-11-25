@@ -78,10 +78,10 @@ After any edit, a Term that no Note points to is removed.
 ### Graph View
 
 - A single HTML file, written into the data folder and rewritten after every change. I open it in a browser on the PC.
-- The picture is 3D. Every Day is one dot (orange, larger) and every Term is one dot (blue, smaller). A line joins a Term to each Day it came up on. The dots arrange themselves. I can turn the picture, zoom, and drag a dot.
-- Each dot has a name tag with the legend's key: a square for a Day, a circle for a Term.
-- Clicking a Day shows its Timeline, as in the Telegram answer. Clicking a Term shows its description and the Notes it came up in.
-- What the page shows follows the approved example page ("Graph View Example"): the picture, a legend, the counts, and a panel for the clicked dot. How it looks does not: the page has its own design, with the picture filling the left and the panel on the right (below the picture on a phone), in a dark and a light theme that follow the PC's setting.
+- The picture is 3D. Every Day is one dot (orange, larger) and every Term is one dot (smaller, in the text colour: white on the dark theme, black on the light one). A line joins a Term to each Day it came up on. The dots arrange themselves. I can turn the picture, zoom, and drag a dot.
+- Each dot has a name tag with the legend's key (a square for a Day, a circle for a Term) and a catalogue number: D01, D02 and so on for Days in date order, T01, T02 and so on for Terms in the order they first came up.
+- The page opens on the Index, a list of every Day and Term. Clicking a dot, its name tag or its line in the Index shows that entry. A Day shows its Timeline, as in the Telegram answer. A Term shows its description and the Notes it came up in. Clicking empty space, pressing Escape or clicking "Index" goes back.
+- What the page shows follows the approved example page ("Graph View Example"): the picture, a legend, the counts, and a panel for the clicked dot. How it looks does not. The page has its own design, set like a printed index: black and white with orange as the only colour, the picture on the left and the panel on the right (below the picture on a phone). The dark and the light theme follow the PC's setting, and a button switches between them.
 - The page only shows. Nothing I do on it is saved. Changes are made by chat (see Edit).
 
 ## Tech Stack
