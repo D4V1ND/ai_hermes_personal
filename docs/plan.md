@@ -21,8 +21,8 @@ Phase 5 only needs Phase 1. If your Hermes setup is not ready when Phase 1 ends,
 
 ## Decisions made in this plan
 
-1. **Graph library: D3, version 7.9.0, loaded from cdnjs.** The approved "Graph View Example" page already draws its own squares, circles and lines, with fixed positions. D3's force layout adds the one missing piece, dots that arrange themselves and can be dragged, so the approved look carries over unchanged. Libraries that draw the graph themselves (vis-network, Cytoscape) would mean rebuilding the look.
-2. **The real Graph View keeps the picture, legend, count line and click panel of the example.** It drops the two parts that only explain the example: the "Send a new Note" button and the "What is stored behind the picture" table.
+1. **Graph library: 3d-force-graph, version 1.80.2, loaded from jsDelivr with a checksum.** Changed on 25 Nov 2026: the picture is 3D, so D3 (flat only) was replaced. 3d-force-graph is the usual library for a 3D graph that arranges itself and can be turned, zoomed and dragged. The name tags are ordinary buttons laid over the picture, so every dot stays reachable by keyboard and keeps the square or round key from the approved example.
+2. **The real Graph View keeps what the example shows (legend, counts, click panel) around a 3D picture, in its own design.** Changed on 25 Nov 2026, after looking at what recent award-winning sites (Awwwards Sites of the Day) have in common: the page is set like a printed index. It is black and white plus one colour (orange for a Day; a Term is the text colour), with very large type against small monospace labels, a catalogue number for every dot, and the selected name printed large behind the picture. The page opens on the Index, a list of every Day and Term. It drops the two parts that only explain the example: the "Send a new Note" button and the "What is stored behind the picture" table.
 3. **"Inside this repository" is checked as "inside any git repository".** The script walks up from the data folder and refuses if it finds a `.git` folder. This still works after `skill/` is copied into Hermes's skills folder.
 4. **Term names ignore upper and lower case**, so "langgraph" cannot become a second Term next to "LangGraph". Deciding that "Lang Graph" means LangGraph stays Hermes's job, as the spec says.
 
@@ -149,14 +149,14 @@ Tests use an in-memory SQLite database. Functions take the database connection a
 
 | Task | Work |
 |---|---|
-| 5.1 | `graph_template.html`: the example page's styles, shapes, legend and click panel. D3's force layout places the dots. The data comes from one embedded JSON block |
+| 5.1 | `graph_template.html`: the Index, legend, counts and click panel around a 3D picture. 3d-force-graph places the dots. The data comes from one embedded JSON block |
 | 5.2 | `write_graph()` and the `graph` command. Every changing command rewrites the page. Note text is embedded safely, so a Note containing HTML cannot break the page. One test for that |
 | 5.3 | Load the example data with `save --at …` into a throwaway folder and generate the page |
 
 **Checkpoint 5**
 - [ ] All tests still pass.
 - [ ] The page for the example data shows four dots and three lines, and clicking each dot shows the right panel (Criterion 13).
-- [ ] The page matches the approved "Graph View Example" in look and behaviour. You judge this.
+- [ ] The page looks right on the PC and on a phone, in the dark and the light theme. You judge this.
 - [ ] After a new Note in Telegram, the page shows it when reloaded.
 
 ## Final checkpoint: first version done
